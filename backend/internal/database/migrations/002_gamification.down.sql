@@ -1,0 +1,8 @@
+ALTER TABLE users DROP COLUMN IF EXISTS profile_visibility;
+ALTER TABLE users DROP COLUMN IF EXISTS bio;
+ALTER TABLE users DROP COLUMN IF EXISTS username;
+DROP TABLE IF EXISTS user_points;
+DROP TABLE IF EXISTS activity_log;
+DROP TABLE IF EXISTS user_streaks;
+DROP TABLE IF EXISTS user_badges;
+DROP TABLE IF EXISTS badges;

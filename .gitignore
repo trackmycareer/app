@@ -1,0 +1,30 @@
+# Go
+backend/bin/
+backend/tmp/
+backend/server
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata_dev/
+
+# Misc
+*.log
