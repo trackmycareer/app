@@ -18,6 +18,7 @@ import {
   CloseIcon,
   StarIcon,
   UserCircleIcon,
+  ShieldIcon,
   HeartIcon,
   SunIcon,
   MoonIcon,
@@ -151,6 +152,12 @@ export function Sidebar() {
               to="/profile"
               icon={<UserCircleIcon width={18} height={18} />}
               label="Profile"
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/security"
+              icon={<ShieldIcon width={18} height={18} />}
+              label="Security"
               onClick={closeSidebar}
             />
           </NavSection>

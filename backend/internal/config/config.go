@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 
 	"github.com/caarlos0/env/v11"
@@ -58,12 +60,29 @@ type Config struct {
 	// Trusted proxies (comma-separated CIDRs or IPs; empty = trust no proxies)
 	TrustedProxies string `env:"TRUSTED_PROXIES"`
 
+	// MFA encryption key (base64-encoded 32-byte key for AES-256-GCM)
+	MFAEncryptionKey string `env:"MFA_ENCRYPTION_KEY"`
+
 	// Polar supporter integration (optional — leave blank to disable)
 	PolarAccessToken           string `env:"POLAR_ACCESS_TOKEN"`
 	PolarWebhookSecret         string `env:"POLAR_WEBHOOK_SECRET"`
 	PolarProductIDOneTime      string `env:"POLAR_PRODUCT_ID_ONE_TIME"`
 	PolarProductIDSubscription string `env:"POLAR_PRODUCT_ID_SUBSCRIPTION"`
 	PolarSandbox               bool   `env:"POLAR_SANDBOX" envDefault:"false"`
+}
+
+func (c Config) MFAKeyBytes() ([]byte, error) {
+	if c.MFAEncryptionKey == "" {
+		return nil, fmt.Errorf("MFA_ENCRYPTION_KEY is not set")
+	}
+	key, err := base64.StdEncoding.DecodeString(c.MFAEncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("decoding MFA_ENCRYPTION_KEY: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("MFA_ENCRYPTION_KEY must decode to exactly 32 bytes, got %d", len(key))
+	}
+	return key, nil
 }
 
 func (c Config) PolarEnabled() bool {

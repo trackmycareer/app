@@ -39,6 +39,15 @@ type RegisterResult struct {
 	UserID uuid.UUID
 }
 
+// LoginResult encapsulates the outcome of a login attempt. When the user has
+// MFA enabled, TokenPair is nil and MFASession contains a short-lived JWT
+// that must be presented to the MFA verification endpoint.
+type LoginResult struct {
+	TokenPair  *TokenPair // nil if MFA verification is required
+	MFASession string     // set if MFA verification is required
+	Methods    []string   // available MFA methods when MFA is required
+}
+
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (RegisterResult, error) {
 	hash, err := password.Hash(req.Password)
 	if err != nil {
@@ -57,7 +66,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (RegisterRe
 		return RegisterResult{}, fmt.Errorf("creating user: %w", err)
 	}
 
-	tokens, err := s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, 0)
+	tokens, err := s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, 0, false)
 	if err != nil {
 		return RegisterResult{}, err
 	}
@@ -65,18 +74,18 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (RegisterRe
 	return RegisterResult{Tokens: tokens, UserID: u.ID}, nil
 }
 
-func (s *Service) Login(ctx context.Context, req LoginRequest) (TokenPair, error) {
+func (s *Service) Login(ctx context.Context, req LoginRequest) (LoginResult, error) {
 	u, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("invalid email or password")
+		return LoginResult{}, fmt.Errorf("invalid email or password")
 	}
 
 	match, err := password.Verify(req.Password, u.PasswordHash)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("invalid email or password")
+		return LoginResult{}, fmt.Errorf("invalid email or password")
 	}
 	if !match {
-		return TokenPair{}, fmt.Errorf("invalid email or password")
+		return LoginResult{}, fmt.Errorf("invalid email or password")
 	}
 
 	// Transparently rehash bcrypt passwords to Argon2id on successful login.
@@ -89,7 +98,23 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (TokenPair, error
 		}
 	}
 
-	return s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion)
+	// If MFA is enabled, return a short-lived pending token instead of a full session.
+	if u.MFAEnabled {
+		mfaSession, err := s.jwtManager.GenerateMFAPendingToken(u.ID, u.Email)
+		if err != nil {
+			return LoginResult{}, fmt.Errorf("generating MFA session token: %w", err)
+		}
+		return LoginResult{
+			MFASession: mfaSession,
+			Methods:    []string{"totp", "passkey", "backup"},
+		}, nil
+	}
+
+	tokens, err := s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion, u.MFAEnabled)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{TokenPair: &tokens}, nil
 }
 
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, error) {
@@ -107,7 +132,33 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (TokenPair, 
 		return TokenPair{}, fmt.Errorf("token has been revoked")
 	}
 
-	return s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion)
+	return s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion, u.MFAEnabled)
+}
+
+// CompleteMFALogin validates an MFA-pending session token and generates a full
+// token pair. The caller is responsible for verifying the MFA code before
+// calling this method.
+func (s *Service) CompleteMFALogin(ctx context.Context, mfaSessionToken string) (*TokenPair, uuid.UUID, error) {
+	claims, err := s.jwtManager.ValidateToken(mfaSessionToken)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("MFA session expired, please log in again")
+	}
+
+	if claims.TokenType != "mfa_pending" {
+		return nil, uuid.Nil, fmt.Errorf("invalid MFA session token")
+	}
+
+	u, err := s.userRepo.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("user not found")
+	}
+
+	tokens, err := s.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion, u.MFAEnabled)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("generating token pair: %w", err)
+	}
+
+	return &tokens, u.ID, nil
 }
 
 func (s *Service) Logout(ctx context.Context, userID uuid.UUID) error {

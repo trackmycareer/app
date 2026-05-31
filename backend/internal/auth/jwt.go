@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	AccessTokenDuration  = 15 * time.Minute
-	RefreshTokenDuration = 7 * 24 * time.Hour
+	AccessTokenDuration     = 15 * time.Minute
+	RefreshTokenDuration    = 7 * 24 * time.Hour
+	MFAPendingTokenDuration = 5 * time.Minute
 )
 
 type Claims struct {
@@ -19,6 +20,8 @@ type Claims struct {
 	IsAdmin       bool      `json:"is_admin"`
 	EmailVerified bool      `json:"email_verified"`
 	TokenVersion  int       `json:"token_version"`
+	MFAEnabled    bool      `json:"mfa_enabled"`
+	TokenType     string    `json:"type,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -35,13 +38,13 @@ func NewJWTManager(secret string) *JWTManager {
 	return &JWTManager{secret: []byte(secret)}
 }
 
-func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int) (TokenPair, error) {
-	accessToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, AccessTokenDuration)
+func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int, mfaEnabled bool) (TokenPair, error) {
+	accessToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, mfaEnabled, "", AccessTokenDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("generating access token: %w", err)
 	}
 
-	refreshToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, RefreshTokenDuration)
+	refreshToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, mfaEnabled, "", RefreshTokenDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("generating refresh token: %w", err)
 	}
@@ -52,7 +55,14 @@ func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin, 
 	}, nil
 }
 
-func (m *JWTManager) generateToken(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int, duration time.Duration) (string, error) {
+// GenerateMFAPendingToken creates a short-lived JWT (5 minutes) that indicates
+// the user has passed credential verification but still needs to complete MFA.
+// This token cannot be used as an access token; the auth middleware rejects it.
+func (m *JWTManager) GenerateMFAPendingToken(userID uuid.UUID, email string) (string, error) {
+	return m.generateToken(userID, email, false, false, 0, false, "mfa_pending", MFAPendingTokenDuration)
+}
+
+func (m *JWTManager) generateToken(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int, mfaEnabled bool, tokenType string, duration time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:        userID,
@@ -60,6 +70,8 @@ func (m *JWTManager) generateToken(userID uuid.UUID, email string, isAdmin, emai
 		IsAdmin:       isAdmin,
 		EmailVerified: emailVerified,
 		TokenVersion:  tokenVersion,
+		MFAEnabled:    mfaEnabled,
+		TokenType:     tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(now),

@@ -13,6 +13,8 @@ import (
 type Mailer interface {
 	SendVerificationEmail(to, name, token string) error
 	SendEmailChangeConfirmation(to, name, token string) error
+	SendPasswordResetEmail(to, name, token string) error
+	SendOAuthResetNotification(to, name, provider string) error
 }
 
 // SMTPMailer sends emails via an SMTP server with STARTTLS.
@@ -81,6 +83,51 @@ func (m *SMTPMailer) SendEmailChangeConfirmation(to, name, token string) error {
 	}
 
 	return m.send(to, emailChangeSubject, htmlBody, textBody)
+}
+
+// SendPasswordResetEmail sends an email with a link to reset the user's password.
+func (m *SMTPMailer) SendPasswordResetEmail(to, name, token string) error {
+	link := fmt.Sprintf("%s/reset-password?token=%s", m.frontendURL, token)
+
+	htmlBody, err := renderTemplate(passwordResetHTMLTmpl, emailData{
+		Name: name,
+		Link: link,
+	})
+	if err != nil {
+		return fmt.Errorf("rendering password reset email HTML: %w", err)
+	}
+
+	textBody, err := renderTemplate(passwordResetTextTmpl, emailData{
+		Name: name,
+		Link: link,
+	})
+	if err != nil {
+		return fmt.Errorf("rendering password reset email text: %w", err)
+	}
+
+	return m.send(to, passwordResetSubject, htmlBody, textBody)
+}
+
+// SendOAuthResetNotification sends an email informing the user that they
+// signed up via an OAuth provider and should use that provider to sign in.
+func (m *SMTPMailer) SendOAuthResetNotification(to, name, provider string) error {
+	htmlBody, err := renderTemplate(oauthResetHTMLTmpl, oauthEmailData{
+		Name:     name,
+		Provider: provider,
+	})
+	if err != nil {
+		return fmt.Errorf("rendering OAuth reset notification HTML: %w", err)
+	}
+
+	textBody, err := renderTemplate(oauthResetTextTmpl, oauthEmailData{
+		Name:     name,
+		Provider: provider,
+	})
+	if err != nil {
+		return fmt.Errorf("rendering OAuth reset notification text: %w", err)
+	}
+
+	return m.send(to, oauthResetSubject, htmlBody, textBody)
 }
 
 // send builds a multipart/alternative MIME message and delivers it via SMTP with STARTTLS.
@@ -187,6 +234,29 @@ func (m *NoopMailer) SendVerificationEmail(to, name, token string) error {
 		"subject", verificationSubject,
 		"name", name,
 		"link", link,
+	)
+	return nil
+}
+
+// SendPasswordResetEmail logs the password reset email details.
+func (m *NoopMailer) SendPasswordResetEmail(to, name, token string) error {
+	link := fmt.Sprintf("%s/reset-password?token=%s", m.frontendURL, token)
+	slog.Info("noop mailer: password reset email",
+		"to", to,
+		"subject", passwordResetSubject,
+		"name", name,
+		"link", link,
+	)
+	return nil
+}
+
+// SendOAuthResetNotification logs the OAuth reset notification details.
+func (m *NoopMailer) SendOAuthResetNotification(to, name, provider string) error {
+	slog.Info("noop mailer: OAuth reset notification",
+		"to", to,
+		"subject", oauthResetSubject,
+		"name", name,
+		"provider", provider,
 	)
 	return nil
 }

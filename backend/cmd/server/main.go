@@ -5,15 +5,22 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/trackmycareer/app/internal/admin"
 	"github.com/trackmycareer/app/internal/auth"
+	"github.com/trackmycareer/app/internal/mfa"
+	"github.com/trackmycareer/app/internal/mfa/backup"
+	mfacrypto "github.com/trackmycareer/app/internal/mfa/crypto"
+	"github.com/trackmycareer/app/internal/mfa/passkey"
+	"github.com/trackmycareer/app/internal/mfa/totp"
 	"github.com/trackmycareer/app/internal/certification"
 	"github.com/trackmycareer/app/internal/company"
 	"github.com/trackmycareer/app/internal/config"
@@ -28,6 +35,7 @@ import (
 	"github.com/trackmycareer/app/internal/logger"
 	"github.com/trackmycareer/app/internal/mailer"
 	"github.com/trackmycareer/app/internal/middleware"
+	"github.com/trackmycareer/app/internal/passwordreset"
 	"github.com/trackmycareer/app/internal/polar"
 	"github.com/trackmycareer/app/internal/profile"
 	"github.com/trackmycareer/app/internal/settings"
@@ -56,6 +64,21 @@ func main() {
 			log.Fatal("JWT_SECRET must be at least 32 characters; generate one with: openssl rand -base64 48")
 		}
 		slog.Warn("JWT_SECRET is shorter than 32 characters; this is insecure for production")
+	}
+
+	// MFA encryption key
+	var mfaEncryptor *mfacrypto.Encryptor
+	mfaKey, err := cfg.MFAKeyBytes()
+	if err != nil {
+		if cfg.Env == "production" {
+			log.Fatalf("MFA_ENCRYPTION_KEY: %v", err)
+		}
+		slog.Warn("MFA features unavailable", "reason", err.Error())
+	} else {
+		mfaEncryptor, err = mfacrypto.NewEncryptor(mfaKey)
+		if err != nil {
+			log.Fatalf("initialising MFA encryptor: %v", err)
+		}
 	}
 
 	logger.Init(cfg.Env)
@@ -112,6 +135,50 @@ func main() {
 	authService := auth.NewService(userRepo, jwtManager)
 	mailService := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.FrontendURL)
 	verificationService := verification.NewService(verificationRepo, userRepo, mailService)
+	passwordResetRepo := passwordreset.NewRepository(pool)
+
+	// MFA services
+	totpRepo := totp.NewRepository(pool)
+	passkeyRepo := passkey.NewRepository(pool)
+	backupRepo := backup.NewRepository(pool)
+
+	var mfaService *mfa.Service
+	var mfaHandler *mfa.Handler
+	if mfaEncryptor != nil {
+		frontendParsed, parseErr := url.Parse(cfg.FrontendURL)
+		if parseErr != nil {
+			log.Fatalf("parsing FRONTEND_URL: %v", parseErr)
+		}
+		rpID := frontendParsed.Hostname()
+
+		totpService := totp.NewService(totpRepo, mfaEncryptor, "trackmy.career")
+		passkeyService, passkeyErr := passkey.NewService(passkeyRepo, rpID, "trackmy.career", cfg.FrontendURL)
+		if passkeyErr != nil {
+			log.Fatalf("initialising passkey service: %v", passkeyErr)
+		}
+		backupService := backup.NewService(backupRepo, mfaKey)
+
+		mfaService = mfa.NewService(totpService, passkeyService, backupService, userRepo)
+		mfaHandler = mfa.NewHandler(mfaService, userRepo)
+	}
+
+	// Password reset service (after MFA so we can wire MFA verification)
+	var mfaCodeVerifier passwordreset.MFACodeVerifier
+	var passkeyChallengeFunc passwordreset.PasskeyChallengeFunc
+	if mfaService != nil {
+		mfaCodeVerifier = func(ctx context.Context, userID uuid.UUID, method, code string) error {
+			return mfaService.VerifyAnyMethod(ctx, userID, mfa.Method(method), code)
+		}
+		passkeyChallengeFunc = func(ctx context.Context, userID uuid.UUID) (any, error) {
+			passkeys, err := mfaService.Passkey().ListByUserID(ctx, userID)
+			if err != nil {
+				return nil, err
+			}
+			return mfaService.Passkey().BeginAuthentication(ctx, userID, passkeys)
+		}
+	}
+	passwordResetService := passwordreset.NewService(passwordResetRepo, userRepo, mailService, cfg.FrontendURL, mfaCodeVerifier)
+
 	winService := win.NewService(winRepo)
 	jobService := job.NewService(jobRepo)
 	certService := certification.NewService(certRepo)
@@ -131,7 +198,7 @@ func main() {
 	// Handlers
 	importerHandler := importer.NewHandler(importerService)
 	adminHandler := admin.NewHandler(adminService, userRepo)
-	authHandler := auth.NewHandler(authService, oauthManager, settingsRepo, cfg.FrontendURL, verificationService)
+	authHandler := auth.NewHandler(authService, oauthManager, settingsRepo, cfg.FrontendURL, verificationService, mfaService)
 	exportHandler := export.NewHandler(exportService)
 	userHandler := user.NewHandler(userRepo, storageClient)
 	settingsHandler := settings.NewHandler(settingsRepo)
@@ -151,6 +218,7 @@ func main() {
 		cfg.JWTSecret,
 	)
 	verificationHandler := verification.NewHandler(verificationService)
+	passwordResetHandler := passwordreset.NewHandler(passwordResetService, passkeyChallengeFunc)
 	profileHandler := profile.NewHandler(userRepo, gamificationRepo, winRepo, jobRepo, certRepo, skillRepo, linkedAccountService)
 
 	// Router
@@ -196,6 +264,16 @@ func main() {
 
 		authGroup.GET("/providers", authHandler.Providers)
 		authGroup.POST("/verify-email/confirm", verificationHandler.VerifyEmail)
+		// Password reset: 3 req/min per IP, burst 5
+		authGroup.POST("/forgot-password", middleware.IPRateLimit(rate.Limit(3.0/60.0), 5), passwordResetHandler.ForgotPassword)
+		// Reset password: 5 req/min per IP, burst 10
+		authGroup.POST("/reset-password", middleware.IPRateLimit(rate.Limit(5.0/60.0), 10), passwordResetHandler.ResetPassword)
+		// Reset password passkey challenge: 5 req/min per IP, burst 10
+		authGroup.POST("/reset-password/passkey-challenge", middleware.IPRateLimit(rate.Limit(5.0/60.0), 10), passwordResetHandler.PasskeyChallenge)
+		// MFA verification during login: 5 req/min per IP, burst 10
+		authGroup.POST("/mfa/verify", middleware.IPRateLimit(rate.Limit(5.0/60.0), 10), authHandler.VerifyMFA)
+		// MFA passkey challenge during login: 5 req/min per IP, burst 10
+		authGroup.POST("/mfa/passkey/challenge", middleware.IPRateLimit(rate.Limit(5.0/60.0), 10), authHandler.MFAPasskeyChallenge)
 		authGroup.GET("/:provider", authHandler.OAuthInitiate)
 		authGroup.POST("/:provider/callback", authHandler.OAuthCallback)
 	}
@@ -323,11 +401,31 @@ func main() {
 			linkedGroup.POST("/website/verify", linkedAccountHandler.VerifyWebsite)
 			linkedGroup.DELETE("/:provider", linkedAccountHandler.Unlink)
 		}
+
+		// MFA management
+		if mfaHandler != nil {
+			mfaGroup := verified.Group("/user/me/mfa")
+			{
+				mfaGroup.GET("/status", mfaHandler.GetMFAStatus)
+				mfaGroup.POST("/totp/setup", mfaHandler.SetupTOTP)
+				mfaGroup.POST("/totp/verify", mfaHandler.VerifyTOTP)
+				mfaGroup.DELETE("/totp", mfaHandler.DeleteTOTP)
+				mfaGroup.POST("/passkeys/register/begin", mfaHandler.BeginPasskeyRegistration)
+				mfaGroup.POST("/passkeys/register/complete", mfaHandler.CompletePasskeyRegistration)
+				mfaGroup.GET("/passkeys", mfaHandler.ListPasskeys)
+				mfaGroup.PUT("/passkeys/:id", mfaHandler.RenamePasskey)
+				mfaGroup.DELETE("/passkeys/:id", mfaHandler.DeletePasskey)
+				mfaGroup.GET("/backup-codes/count", mfaHandler.GetBackupCodeCount)
+				mfaGroup.POST("/backup-codes/regenerate", mfaHandler.RegenerateBackupCodes)
+				mfaGroup.POST("/disable", mfaHandler.DisableMFA)
+			}
+		}
 	}
 
 	// Admin routes
 	adminGroup := verified.Group("/admin")
 	adminGroup.Use(middleware.AdminRequired())
+	adminGroup.Use(middleware.MFARequiredForAdmin())
 	{
 		adminGroup.GET("/users", adminHandler.ListUsers)
 		adminGroup.GET("/users/:id", adminHandler.GetUser)

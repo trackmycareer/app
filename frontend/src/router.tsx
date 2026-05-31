@@ -15,6 +15,8 @@ const LinkCallback = lazy(() => import("@/pages/auth/LinkCallback"));
 const VerifyEmailRequired = lazy(() => import("@/pages/auth/VerifyEmailRequired"));
 const VerifyEmail = lazy(() => import("@/pages/auth/VerifyEmail"));
 const ConfirmEmailChange = lazy(() => import("@/pages/auth/ConfirmEmailChange"));
+const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const WinsList = lazy(() => import("@/pages/wins/WinsList"));
 const WinForm = lazy(() => import("@/pages/wins/WinForm"));
 const JobsList = lazy(() => import("@/pages/jobs/JobsList"));
@@ -31,6 +33,7 @@ const AdminBadges = lazy(() => import("@/pages/admin/AdminBadges"));
 const Achievements = lazy(() => import("@/pages/gamification/Achievements"));
 const ProfileSettings = lazy(() => import("@/pages/profile/ProfileSettings"));
 const PublicProfile = lazy(() => import("@/pages/profile/PublicProfile"));
+const Security = lazy(() => import("@/pages/security/Security"));
 const Support = lazy(() => import("@/pages/support/Support"));
 const SupportThankYou = lazy(() => import("@/pages/support/ThankYou"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -74,6 +77,23 @@ export const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <LinkCallback />
+      </SuspenseWrapper>
+    ),
+  },
+
+  {
+    path: "/forgot-password",
+    element: (
+      <SuspenseWrapper>
+        <ForgotPassword />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/reset-password",
+    element: (
+      <SuspenseWrapper>
+        <ResetPassword />
       </SuspenseWrapper>
     ),
   },
@@ -241,6 +261,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <ProfileSettings />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "security",
+            element: (
+              <SuspenseWrapper>
+                <Security />
               </SuspenseWrapper>
             ),
           },
