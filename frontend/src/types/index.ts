@@ -8,6 +8,7 @@ export interface User {
   open_to_work: string;
   provider: string;
   is_admin: boolean;
+  mfa_enabled: boolean;
   email_verified: boolean;
   email_verified_at: string | null;
   newsletter_opt_in: boolean;
@@ -279,4 +280,18 @@ export interface PublicLinkedAccount {
 export interface LocationResult {
   label: string;
   source: "user" | "photon";
+}
+
+export interface MFAStatus {
+  enabled: boolean;
+  methods: string[];
+  passkey_count: number;
+  backup_codes_remaining: number;
+}
+
+export interface PasskeyInfo {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
 }

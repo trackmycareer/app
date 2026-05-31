@@ -151,36 +151,44 @@ func (m *OAuthManager) GetAuthURL(providerName string) (string, string, error) {
 	return provider.config.AuthCodeURL(state, oauth2.AccessTypeOffline), state, nil
 }
 
-func (m *OAuthManager) HandleCallback(ctx context.Context, providerName, code string) (TokenPair, error) {
+// OAuthResult encapsulates the outcome of an OAuth callback. When the user has
+// MFA enabled, TokenPair is nil and MFASession contains a short-lived JWT.
+type OAuthResult struct {
+	TokenPair  *TokenPair
+	MFASession string
+	Methods    []string
+}
+
+func (m *OAuthManager) HandleCallback(ctx context.Context, providerName, code string) (OAuthResult, error) {
 	provider, ok := m.providers[providerName]
 	if !ok {
-		return TokenPair{}, fmt.Errorf("unknown OAuth provider: %s", providerName)
+		return OAuthResult{}, fmt.Errorf("unknown OAuth provider: %s", providerName)
 	}
 
 	token, err := provider.config.Exchange(ctx, code)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("exchanging code: %w", err)
+		return OAuthResult{}, fmt.Errorf("exchanging code: %w", err)
 	}
 
 	client := provider.config.Client(ctx, token)
 	resp, err := client.Get(provider.userInfoURL)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("fetching user info: %w", err)
+		return OAuthResult{}, fmt.Errorf("fetching user info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return TokenPair{}, fmt.Errorf("user info returned status %d", resp.StatusCode)
+		return OAuthResult{}, fmt.Errorf("user info returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("reading user info body: %w", err)
+		return OAuthResult{}, fmt.Errorf("reading user info body: %w", err)
 	}
 
 	oUser, err := provider.parseUser(body)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("parsing user info: %w", err)
+		return OAuthResult{}, fmt.Errorf("parsing user info: %w", err)
 	}
 
 	// For GitHub, email may be private. Fetch from emails endpoint.
@@ -192,16 +200,32 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, providerName, code st
 	}
 
 	if oUser.Email == "" {
-		return TokenPair{}, fmt.Errorf("could not retrieve email from %s", providerName)
+		return OAuthResult{}, fmt.Errorf("could not retrieve email from %s", providerName)
 	}
 
 	// Upsert user
 	u, err := m.upsertUser(ctx, providerName, oUser)
 	if err != nil {
-		return TokenPair{}, fmt.Errorf("upserting user: %w", err)
+		return OAuthResult{}, fmt.Errorf("upserting user: %w", err)
 	}
 
-	return m.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion)
+	// If MFA is enabled, return a pending session token instead of a full pair.
+	if u.MFAEnabled {
+		mfaSession, err := m.jwtManager.GenerateMFAPendingToken(u.ID, u.Email)
+		if err != nil {
+			return OAuthResult{}, fmt.Errorf("generating MFA session token: %w", err)
+		}
+		return OAuthResult{
+			MFASession: mfaSession,
+			Methods:    []string{"totp", "passkey", "backup"},
+		}, nil
+	}
+
+	tokens, err := m.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion, u.MFAEnabled)
+	if err != nil {
+		return OAuthResult{}, err
+	}
+	return OAuthResult{TokenPair: &tokens}, nil
 }
 
 func (m *OAuthManager) upsertUser(ctx context.Context, providerName string, oUser oauthUser) (*user.User, error) {

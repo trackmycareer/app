@@ -670,6 +670,132 @@ export function HeartIcon(props: IconProps) {
   );
 }
 
+export function ShieldCheckIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+export function KeyIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+      <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function SmartphoneIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <rect x={5} y={2} width={14} height={20} rx={2} ry={2} />
+      <path d="M12 18h.01" />
+    </svg>
+  );
+}
+
+export function FingerprintIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+      <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+      <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+      <path d="M2 12a10 10 0 0 1 18-6" />
+      <path d="M2 16h.01" />
+      <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+      <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+      <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+      <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+    </svg>
+  );
+}
+
+export function CopyIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <rect x={9} y={9} width={13} height={13} rx={2} ry={2} />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width={20}
+      height={20}
+      {...props}
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <svg

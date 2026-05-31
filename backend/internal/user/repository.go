@@ -20,7 +20,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const userColumns = `id, email, password_hash, name, avatar_url, provider, provider_id, is_admin, username, bio, location, headline, open_to_work, profile_visibility, email_verified, email_verified_at, newsletter_opt_in, newsletter_opt_in_at, is_one_time_supporter, is_subscriber, supporter_since, polar_customer_id, token_version, created_at, updated_at`
+const userColumns = `id, email, password_hash, name, avatar_url, provider, provider_id, is_admin, username, bio, location, headline, open_to_work, profile_visibility, email_verified, email_verified_at, newsletter_opt_in, newsletter_opt_in_at, is_one_time_supporter, is_subscriber, supporter_since, polar_customer_id, mfa_enabled, token_version, created_at, updated_at`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
@@ -33,7 +33,7 @@ func scanUser(row pgx.Row) (User, error) {
 		&u.EmailVerified, &u.EmailVerifiedAt,
 		&u.NewsletterOptIn, &u.NewsletterOptInAt,
 		&u.IsOneTimeSupporter, &u.IsSubscriber, &u.SupporterSince, &u.PolarCustomerID,
-		&u.TokenVersion,
+		&u.MFAEnabled, &u.TokenVersion,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	return u, err
@@ -184,7 +184,7 @@ func (r *Repository) List(ctx context.Context, search string, limit, offset int)
 			&u.EmailVerified, &u.EmailVerifiedAt,
 			&u.NewsletterOptIn, &u.NewsletterOptInAt,
 			&u.IsOneTimeSupporter, &u.IsSubscriber, &u.SupporterSince, &u.PolarCustomerID,
-			&u.TokenVersion,
+			&u.MFAEnabled, &u.TokenVersion,
 			&u.CreatedAt, &u.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scanning user: %w", err)
@@ -238,6 +238,13 @@ func (r *Repository) UpdateSupporterStatus(ctx context.Context, userID uuid.UUID
 		return fmt.Errorf("updating supporter status: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) SetMFAEnabled(ctx context.Context, userID uuid.UUID, enabled bool) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET mfa_enabled = $2, updated_at = NOW() WHERE id = $1`,
+		userID, enabled)
+	return err
 }
 
 func (r *Repository) IncrementTokenVersion(ctx context.Context, userID uuid.UUID) error {

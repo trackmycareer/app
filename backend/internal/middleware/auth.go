@@ -32,10 +32,18 @@ func AuthRequired(jwtManager *auth.JWTManager) gin.HandlerFunc {
 			return
 		}
 
+		// Reject MFA-pending tokens; they are not valid access tokens.
+		if claims.TokenType == "mfa_pending" {
+			response.Unauthorised(c, "authentication required")
+			c.Abort()
+			return
+		}
+
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("is_admin", claims.IsAdmin)
 		c.Set("email_verified", claims.EmailVerified)
+		c.Set("mfa_enabled", claims.MFAEnabled)
 		c.Next()
 	}
 }

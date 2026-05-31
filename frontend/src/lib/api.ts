@@ -25,6 +25,8 @@ import type {
   CertSearchResult,
   SkillSearchResult,
   LocationResult,
+  MFAStatus,
+  PasskeyInfo,
 } from "@/types";
 
 const api = axios.create({
@@ -68,7 +70,8 @@ api.interceptors.response.use(
 
       if (status === 401) {
         const originalRequest = error.config;
-        if (originalRequest && !originalRequest._retry) {
+        const isAuthEndpoint = originalRequest?.url?.startsWith("/auth/");
+        if (originalRequest && !originalRequest._retry && !isAuthEndpoint) {
           originalRequest._retry = true;
           try {
             if (!refreshPromise) {
@@ -98,6 +101,16 @@ api.interceptors.response.use(
       } else if (status === 403) {
         const code = (error.response?.data as { code?: string })?.code;
         if (code === "EMAIL_NOT_VERIFIED") {
+          return Promise.reject(error);
+        }
+        const mfaSetupRequired = (
+          error.response?.data as { mfa_setup_required?: boolean }
+        )?.mfa_setup_required;
+        if (mfaSetupRequired) {
+          toast.error(
+            "Please set up multi-factor authentication to access admin features.",
+          );
+          window.location.href = "/security";
           return Promise.reject(error);
         }
         toast.error(message || `Request failed (${status})`);
@@ -134,6 +147,23 @@ export const apiClient = {
       api.get<{ data: { auth_url: string } }>(`/auth/${provider}`),
     oauthCallback: (provider: string, data: { code: string; state: string }) =>
       api.post<{ data: { access_token: string } }>(`/auth/${provider}/callback`, data),
+    forgotPassword: (email: string) => api.post("/auth/forgot-password", { email }),
+    resetPassword: (data: {
+      token: string;
+      new_password: string;
+      mfa_method?: string;
+      mfa_code?: string;
+    }) => api.post("/auth/reset-password", data),
+    verifyMFA: (data: {
+      mfa_session: string;
+      method: string;
+      code?: string;
+      assertion?: unknown;
+    }) => api.post<{ data: { access_token: string } }>("/auth/mfa/verify", data),
+    mfaPasskeyChallenge: (mfaSession: string) =>
+      api.post("/auth/mfa/passkey/challenge", { mfa_session: mfaSession }),
+    resetPasswordPasskeyChallenge: (token: string) =>
+      api.post("/auth/reset-password/passkey-challenge", { token }),
   },
   user: {
     getCurrent: () => api.get<{ data: User }>("/user/me"),
@@ -152,6 +182,30 @@ export const apiClient = {
       api.post("/user/me/delete", data),
     updateNewsletter: (data: { opt_in: boolean }) =>
       api.put<{ data: User }>("/user/me/newsletter", data),
+  },
+  mfa: {
+    getStatus: () => api.get<{ data: MFAStatus }>("/user/me/mfa/status"),
+    setupTOTP: () =>
+      api.post<{ data: { uri: string; secret: string } }>("/user/me/mfa/totp/setup"),
+    verifyTOTP: (code: string) =>
+      api.post<{ data: { backup_codes?: string[] } }>("/user/me/mfa/totp/verify", { code }),
+    deleteTOTP: (password: string) =>
+      api.delete("/user/me/mfa/totp", { data: { password } }),
+    beginPasskeyRegistration: () => api.post("/user/me/mfa/passkeys/register/begin"),
+    completePasskeyRegistration: (name: string, credential: unknown) =>
+      api.post("/user/me/mfa/passkeys/register/complete", { name, credential }),
+    listPasskeys: () => api.get<{ data: PasskeyInfo[] }>("/user/me/mfa/passkeys"),
+    renamePasskey: (id: string, name: string) =>
+      api.put(`/user/me/mfa/passkeys/${id}`, { name }),
+    deletePasskey: (id: string, password: string) =>
+      api.delete(`/user/me/mfa/passkeys/${id}`, { data: { password } }),
+    backupCodeCount: () =>
+      api.get<{ data: { remaining: number } }>("/user/me/mfa/backup-codes/count"),
+    regenerateBackupCodes: (password: string) =>
+      api.post<{ data: { backup_codes: string[] } }>("/user/me/mfa/backup-codes/regenerate", {
+        password,
+      }),
+    disable: (password: string) => api.post("/user/me/mfa/disable", { password }),
   },
   verification: {
     send: () => api.post("/auth/verify-email/send"),

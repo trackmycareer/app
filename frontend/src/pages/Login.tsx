@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
+import { MFAChallenge } from "@/components/MFAChallenge";
 import { GithubIcon, GoogleIcon, BriefcaseIcon } from "@/components/icons";
 
 export default function Login() {
@@ -19,6 +20,8 @@ export default function Login() {
   const [emailExpanded, setEmailExpanded] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
+  const [mfaSession, setMfaSession] = useState<string | null>(null);
+  const [mfaMethods, setMfaMethods] = useState<string[]>([]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -45,7 +48,20 @@ export default function Login() {
 
     try {
       const loginRes = await apiClient.auth.login({ email, password });
-      const token = loginRes.data.data.access_token;
+      const data = loginRes.data.data as {
+        access_token?: string;
+        mfa_required?: boolean;
+        mfa_session?: string;
+        methods?: string[];
+      };
+
+      if (data.mfa_required && data.mfa_session) {
+        setMfaSession(data.mfa_session);
+        setMfaMethods(data.methods ?? []);
+        return;
+      }
+
+      const token = data.access_token!;
 
       // Temporarily set token so the user fetch works
       useAuthStore.getState().setAccessToken(token);
@@ -67,6 +83,27 @@ export default function Login() {
     }
   };
 
+  const handleMFASuccess = useCallback(
+    async (accessToken: string) => {
+      useAuthStore.getState().setAccessToken(accessToken);
+      try {
+        const userRes = await apiClient.user.getCurrent();
+        login(userRes.data.data, accessToken);
+        navigate("/wins", { replace: true });
+      } catch {
+        setError("Failed to complete sign in. Please try again.");
+        setMfaSession(null);
+        setMfaMethods([]);
+      }
+    },
+    [login, navigate],
+  );
+
+  const handleMFACancel = useCallback(() => {
+    setMfaSession(null);
+    setMfaMethods([]);
+  }, []);
+
   const handleOAuth = async (provider: string) => {
     try {
       const res = await apiClient.auth.initiateOAuth(provider);
@@ -75,6 +112,34 @@ export default function Login() {
       // Error toast handled by interceptor
     }
   };
+
+  if (mfaSession) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--bg-base)] px-4">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--accent-default)_0%,_transparent_70%)] opacity-5"
+          aria-hidden="true"
+        />
+        <div
+          className="animate-scale-in relative w-full max-w-sm space-y-6 rounded-[var(--radius-xl)]
+            border border-[var(--border-default)] bg-[var(--bg-surface)] p-8"
+        >
+          <div className="flex flex-col items-center gap-3">
+            <BriefcaseIcon className="text-[var(--accent-default)]" width={32} height={32} />
+            <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+              trackmy<span className="text-[var(--accent-default)]">.</span>career
+            </h1>
+          </div>
+          <MFAChallenge
+            mfaSession={mfaSession}
+            methods={mfaMethods}
+            onSuccess={handleMFASuccess}
+            onCancel={handleMFACancel}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-[var(--bg-base)] px-4">
@@ -168,6 +233,14 @@ export default function Login() {
                 required
                 autoComplete="current-password"
               />
+              <div className="flex justify-end">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
               <Button type="submit" className="w-full" loading={loading}>
                 Sign in
               </Button>

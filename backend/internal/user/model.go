@@ -30,6 +30,7 @@ type User struct {
 	IsSubscriber       bool            `json:"is_subscriber"`
 	SupporterSince     *time.Time      `json:"supporter_since,omitempty"`
 	PolarCustomerID    *string         `json:"-"`
+	MFAEnabled         bool            `json:"mfa_enabled"`
 	TokenVersion       int             `json:"-"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
