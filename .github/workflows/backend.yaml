@@ -1,4 +1,4 @@
-name: Build and Publish
+name: Build Backend
 
 env:
   REGISTRY: ghcr.io
