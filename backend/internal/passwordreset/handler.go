@@ -52,7 +52,7 @@ func (h *Handler) ForgotPassword(c *gin.Context) {
 	// Fire-and-forget: send the reset email asynchronously so the response
 	// time does not reveal whether the account exists.
 	go func() {
-		if err := h.svc.RequestReset(c.Copy().Request.Context(), req.Email); err != nil {
+		if err := h.svc.RequestReset(context.Background(), req.Email); err != nil {
 			slog.Error("failed to process password reset request",
 				"error", err.Error(),
 				"email", req.Email,

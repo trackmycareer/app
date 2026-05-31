@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"mime/quotedprintable"
 	"net"
+	"net/mail"
 	"net/smtp"
 )
 
@@ -150,7 +152,9 @@ func (m *SMTPMailer) send(to, subject, htmlBody, textBody string) error {
 	msg.WriteString("Content-Type: text/plain; charset=\"utf-8\"\r\n")
 	msg.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	msg.WriteString("\r\n")
-	msg.WriteString(textBody)
+	textQP := quotedprintable.NewWriter(&msg)
+	textQP.Write([]byte(textBody))
+	textQP.Close()
 	msg.WriteString("\r\n")
 
 	// HTML part.
@@ -158,7 +162,9 @@ func (m *SMTPMailer) send(to, subject, htmlBody, textBody string) error {
 	msg.WriteString("Content-Type: text/html; charset=\"utf-8\"\r\n")
 	msg.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	msg.WriteString("\r\n")
-	msg.WriteString(htmlBody)
+	htmlQP := quotedprintable.NewWriter(&msg)
+	htmlQP.Write([]byte(htmlBody))
+	htmlQP.Close()
 	msg.WriteString("\r\n")
 
 	// Closing boundary.
@@ -192,8 +198,13 @@ func (m *SMTPMailer) send(to, subject, htmlBody, textBody string) error {
 		return fmt.Errorf("SMTP auth: %w", err)
 	}
 
-	// Set sender and recipient.
-	if err := client.Mail(m.from); err != nil {
+	// Set sender and recipient. The envelope sender must be a bare email
+	// address; the display name only belongs in the From header.
+	envelopeFrom := m.from
+	if addr, parseErr := mail.ParseAddress(m.from); parseErr == nil {
+		envelopeFrom = addr.Address
+	}
+	if err := client.Mail(envelopeFrom); err != nil {
 		return fmt.Errorf("SMTP MAIL FROM: %w", err)
 	}
 	if err := client.Rcpt(to); err != nil {
