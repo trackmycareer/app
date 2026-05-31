@@ -167,6 +167,26 @@ func (r *Repository) AddEvidence(ctx context.Context, userID, skillID uuid.UUID,
 		return SkillEvidence{}, fmt.Errorf("skill not found")
 	}
 
+	// Validate evidence entity belongs to user
+	var evidenceExists bool
+	var evidenceQuery string
+	switch evidenceType {
+	case "job":
+		evidenceQuery = `SELECT EXISTS(SELECT 1 FROM jobs WHERE id = $1 AND user_id = $2)`
+	case "certification":
+		evidenceQuery = `SELECT EXISTS(SELECT 1 FROM certifications WHERE id = $1 AND user_id = $2)`
+	case "win":
+		evidenceQuery = `SELECT EXISTS(SELECT 1 FROM wins WHERE id = $1 AND user_id = $2)`
+	default:
+		return SkillEvidence{}, fmt.Errorf("invalid evidence_type: %s", evidenceType)
+	}
+	if err := r.pool.QueryRow(ctx, evidenceQuery, evidenceID, userID).Scan(&evidenceExists); err != nil {
+		return SkillEvidence{}, fmt.Errorf("checking evidence ownership: %w", err)
+	}
+	if !evidenceExists {
+		return SkillEvidence{}, fmt.Errorf("evidence not found")
+	}
+
 	var e SkillEvidence
 	e.ID = uuid.New()
 	err := r.pool.QueryRow(ctx,

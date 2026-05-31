@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 type Job struct {
@@ -18,7 +18,7 @@ type Job struct {
 	EmploymentType   string      `json:"employment_type"`
 	TransitionType   *string     `json:"transition_type,omitempty"`
 	Location         *string     `json:"location,omitempty"`
-	Remote           bool        `json:"remote"`
+	WorkMode         string      `json:"work_mode"`
 	Responsibilities *string     `json:"responsibilities,omitempty"`
 	Notes            *string     `json:"notes,omitempty"`
 	SortOrder        int         `json:"sort_order"`

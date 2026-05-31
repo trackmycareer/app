@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -12,6 +13,12 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 	origins := strings.Split(allowedOrigins, ",")
 	for i := range origins {
 		origins[i] = strings.TrimSpace(origins[i])
+	}
+
+	for _, o := range origins {
+		if o == "*" {
+			log.Fatal("ALLOWED_ORIGINS must not contain '*' when credentials are enabled; specify exact origins")
+		}
 	}
 
 	return cors.New(cors.Config{

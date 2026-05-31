@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/tag"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/trackmycareer/app/internal/tag"
 )
 
 type Repository struct {

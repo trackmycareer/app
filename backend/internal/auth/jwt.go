@@ -14,9 +14,11 @@ const (
 )
 
 type Claims struct {
-	UserID  uuid.UUID `json:"user_id"`
-	Email   string    `json:"email"`
-	IsAdmin bool      `json:"is_admin"`
+	UserID        uuid.UUID `json:"user_id"`
+	Email         string    `json:"email"`
+	IsAdmin       bool      `json:"is_admin"`
+	EmailVerified bool      `json:"email_verified"`
+	TokenVersion  int       `json:"token_version"`
 	jwt.RegisteredClaims
 }
 
@@ -33,13 +35,13 @@ func NewJWTManager(secret string) *JWTManager {
 	return &JWTManager{secret: []byte(secret)}
 }
 
-func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin bool) (TokenPair, error) {
-	accessToken, err := m.generateToken(userID, email, isAdmin, AccessTokenDuration)
+func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int) (TokenPair, error) {
+	accessToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, AccessTokenDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("generating access token: %w", err)
 	}
 
-	refreshToken, err := m.generateToken(userID, email, isAdmin, RefreshTokenDuration)
+	refreshToken, err := m.generateToken(userID, email, isAdmin, emailVerified, tokenVersion, RefreshTokenDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("generating refresh token: %w", err)
 	}
@@ -50,12 +52,14 @@ func (m *JWTManager) GenerateTokenPair(userID uuid.UUID, email string, isAdmin b
 	}, nil
 }
 
-func (m *JWTManager) generateToken(userID uuid.UUID, email string, isAdmin bool, duration time.Duration) (string, error) {
+func (m *JWTManager) generateToken(userID uuid.UUID, email string, isAdmin, emailVerified bool, tokenVersion int, duration time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID:  userID,
-		Email:   email,
-		IsAdmin: isAdmin,
+		UserID:        userID,
+		Email:         email,
+		IsAdmin:       isAdmin,
+		EmailVerified: emailVerified,
+		TokenVersion:  tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(now),

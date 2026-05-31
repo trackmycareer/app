@@ -5,47 +5,13 @@ import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { Select } from "@/components/Select";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { ProficiencyDots } from "@/components/ProficiencyDots";
 import { ZapIcon, SpinnerIcon } from "@/components/icons";
 import {
   useSkillsQuery,
   useDeleteSkillMutation,
 } from "@/hooks/queries/useSkillsQuery";
 import type { Skill } from "@/types";
-
-const PROFICIENCY_LABELS: Record<number, string> = {
-  1: "Beginner",
-  2: "Intermediate",
-  3: "Advanced",
-  4: "Expert",
-};
-
-const PROFICIENCY_COLOURS: Record<number, string> = {
-  1: "var(--text-tertiary)",
-  2: "var(--accent-default)",
-  3: "var(--color-warning, #d97706)",
-  4: "var(--color-success, #16a34a)",
-};
-
-function ProficiencyDots({ level }: { level: number }) {
-  return (
-    <div className="flex items-center gap-1.5" aria-label={`Proficiency: ${PROFICIENCY_LABELS[level]}`}>
-      {[1, 2, 3, 4].map((dot) => (
-        <span
-          key={dot}
-          className="inline-block h-2 w-2 rounded-full transition-colors"
-          style={{
-            backgroundColor:
-              dot <= level ? PROFICIENCY_COLOURS[level] : "var(--border-default)",
-          }}
-          aria-hidden="true"
-        />
-      ))}
-      <span className="ml-1 text-xs text-[var(--text-tertiary)]">
-        {PROFICIENCY_LABELS[level]}
-      </span>
-    </div>
-  );
-}
 
 export default function SkillsList() {
   const navigate = useNavigate();
@@ -214,7 +180,7 @@ export default function SkillsList() {
                         className="animate-fade-in-up group relative rounded-[var(--radius-lg)]
                           border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4
                           transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-                          hover:shadow-black/20 hover:border-[var(--border-default)]"
+                          hover:shadow-stone-900/10 hover:border-[var(--border-default)]"
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div className="mb-2 flex items-start justify-between gap-2">
@@ -244,7 +210,7 @@ export default function SkillsList() {
                         <div
                           className="mt-3 flex gap-1 border-t border-[var(--border-subtle)] pt-3
                             opacity-0 transition-opacity group-hover:opacity-100
-                            group-focus-within:opacity-100"
+                            group-focus-within:opacity-100 touch:opacity-100"
                         >
                           <Button
                             variant="ghost"

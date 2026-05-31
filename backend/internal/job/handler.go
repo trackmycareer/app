@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/gamification"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/internal/gamification"
+	"github.com/trackmycareer/app/pkg/response"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 type Handler struct {
@@ -38,14 +38,14 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 type createJobRequest struct {
-	Company          string      `json:"company" binding:"required"`
-	Title            string      `json:"title" binding:"required"`
+	Company          string      `json:"company" binding:"required,max=255"`
+	Title            string      `json:"title" binding:"required,max=255"`
 	StartDate        types.Date  `json:"start_date" binding:"required"`
 	EndDate          *types.Date `json:"end_date"`
-	EmploymentType   string      `json:"employment_type"`
+	EmploymentType   string      `json:"employment_type" binding:"max=100"`
 	TransitionType   *string     `json:"transition_type"`
 	Location         *string     `json:"location"`
-	Remote           bool        `json:"remote"`
+	WorkMode         string      `json:"work_mode" binding:"max=100"`
 	Responsibilities *string     `json:"responsibilities"`
 	Notes            *string     `json:"notes"`
 	SortOrder        int         `json:"sort_order"`
@@ -56,7 +56,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 	var req createJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -72,6 +72,19 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
+	if req.Location != nil && len(*req.Location) > 255 {
+		response.BadRequest(c, "location must be at most 255 characters")
+		return
+	}
+	if req.Responsibilities != nil && len(*req.Responsibilities) > 10000 {
+		response.BadRequest(c, "responsibilities must be at most 10000 characters")
+		return
+	}
+	if req.Notes != nil && len(*req.Notes) > 5000 {
+		response.BadRequest(c, "notes must be at most 5000 characters")
+		return
+	}
+
 	j := Job{
 		UserID:           userID,
 		Company:          req.Company,
@@ -81,7 +94,7 @@ func (h *Handler) Create(c *gin.Context) {
 		EmploymentType:   req.EmploymentType,
 		TransitionType:   req.TransitionType,
 		Location:         req.Location,
-		Remote:           req.Remote,
+		WorkMode:         req.WorkMode,
 		Responsibilities: req.Responsibilities,
 		Notes:            req.Notes,
 		SortOrder:        req.SortOrder,
@@ -137,11 +150,19 @@ type updateJobRequest struct {
 	EmploymentType   *string     `json:"employment_type"`
 	TransitionType   *string     `json:"transition_type"`
 	Location         *string     `json:"location"`
-	Remote           *bool       `json:"remote"`
+	WorkMode         *string     `json:"work_mode"`
 	Responsibilities *string     `json:"responsibilities"`
 	Notes            *string     `json:"notes"`
 	SortOrder        *int        `json:"sort_order"`
 }
+
+const (
+	maxJobCompanyLen          = 255
+	maxJobTitleLen            = 255
+	maxJobLocationLen         = 255
+	maxJobResponsibilitiesLen = 10000
+	maxJobNotesLen            = 5000
+)
 
 func (h *Handler) Update(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
@@ -160,7 +181,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var req updateJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -170,12 +191,20 @@ func (h *Handler) Update(c *gin.Context) {
 			response.BadRequest(c, "company cannot be empty")
 			return
 		}
+		if len(company) > maxJobCompanyLen {
+			response.BadRequest(c, "company must be at most 255 characters")
+			return
+		}
 		existing.Company = company
 	}
 	if req.Title != nil {
 		title := strings.TrimSpace(*req.Title)
 		if title == "" {
 			response.BadRequest(c, "title cannot be empty")
+			return
+		}
+		if len(title) > maxJobTitleLen {
+			response.BadRequest(c, "title must be at most 255 characters")
 			return
 		}
 		existing.Title = title
@@ -193,15 +222,27 @@ func (h *Handler) Update(c *gin.Context) {
 		existing.TransitionType = req.TransitionType
 	}
 	if req.Location != nil {
+		if len(*req.Location) > maxJobLocationLen {
+			response.BadRequest(c, "location must be at most 255 characters")
+			return
+		}
 		existing.Location = req.Location
 	}
-	if req.Remote != nil {
-		existing.Remote = *req.Remote
+	if req.WorkMode != nil {
+		existing.WorkMode = *req.WorkMode
 	}
 	if req.Responsibilities != nil {
+		if len(*req.Responsibilities) > maxJobResponsibilitiesLen {
+			response.BadRequest(c, "responsibilities must be at most 10000 characters")
+			return
+		}
 		existing.Responsibilities = req.Responsibilities
 	}
 	if req.Notes != nil {
+		if len(*req.Notes) > maxJobNotesLen {
+			response.BadRequest(c, "notes must be at most 5000 characters")
+			return
+		}
 		existing.Notes = req.Notes
 	}
 	if req.SortOrder != nil {

@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/gamification"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/internal/gamification"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 type Handler struct {
@@ -51,24 +51,34 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 type createSkillRequest struct {
-	Name        string  `json:"name" binding:"required"`
+	Name        string  `json:"name" binding:"required,max=255"`
 	Category    *string `json:"category"`
 	Proficiency int     `json:"proficiency"`
 	Notes       *string `json:"notes"`
 }
+
+const (
+	maxSkillNameLen  = 255
+	maxSkillNotesLen = 5000
+)
 
 func (h *Handler) Create(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
 	var req createSkillRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		response.BadRequest(c, "name is required")
+		return
+	}
+
+	if req.Notes != nil && len(*req.Notes) > maxSkillNotesLen {
+		response.BadRequest(c, "notes must be at most 5000 characters")
 		return
 	}
 
@@ -149,7 +159,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var req updateSkillRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -157,6 +167,10 @@ func (h *Handler) Update(c *gin.Context) {
 		name := strings.TrimSpace(*req.Name)
 		if name == "" {
 			response.BadRequest(c, "name cannot be empty")
+			return
+		}
+		if len(name) > maxSkillNameLen {
+			response.BadRequest(c, "name must be at most 255 characters")
 			return
 		}
 		existing.Name = name
@@ -168,6 +182,10 @@ func (h *Handler) Update(c *gin.Context) {
 		existing.Proficiency = *req.Proficiency
 	}
 	if req.Notes != nil {
+		if len(*req.Notes) > maxSkillNotesLen {
+			response.BadRequest(c, "notes must be at most 5000 characters")
+			return
+		}
 		existing.Notes = req.Notes
 	}
 
@@ -223,7 +241,7 @@ func (h *Handler) AddEvidence(c *gin.Context) {
 
 	var req addEvidenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 

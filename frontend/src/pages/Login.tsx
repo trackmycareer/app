@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
-import { API_URL } from "@/lib/constants";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { GithubIcon, GoogleIcon, BriefcaseIcon } from "@/components/icons";
@@ -68,8 +67,13 @@ export default function Login() {
     }
   };
 
-  const handleOAuth = (provider: string) => {
-    window.location.href = `${API_URL}/auth/${provider}`;
+  const handleOAuth = async (provider: string) => {
+    try {
+      const res = await apiClient.auth.initiateOAuth(provider);
+      window.location.href = res.data.data.auth_url;
+    } catch {
+      // Error toast handled by interceptor
+    }
   };
 
   return (
@@ -140,7 +144,7 @@ export default function Login() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <p className="rounded-[var(--radius-md)] bg-red-500/10 px-3 py-2 text-sm
+                <p className="rounded-[var(--radius-md)] bg-[var(--color-error)]/10 px-3 py-2 text-sm
                   text-[var(--color-error)]" role="alert">
                   {error}
                 </p>

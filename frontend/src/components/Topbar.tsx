@@ -15,7 +15,7 @@ export function Topbar({ title }: TopbarProps) {
     >
       <button
         onClick={toggleSidebar}
-        className="rounded-[var(--radius-sm)] p-1.5 text-[var(--text-secondary)]
+        className="rounded-[var(--radius-sm)] p-1.5 min-h-11 min-w-11 text-[var(--text-secondary)]
           hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] lg:hidden"
         aria-label="Toggle sidebar"
       >

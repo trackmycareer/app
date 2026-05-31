@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 type Handler struct {
@@ -34,16 +34,21 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 type createTagRequest struct {
-	Name   string `json:"name" binding:"required"`
-	Colour string `json:"colour"`
+	Name   string `json:"name" binding:"required,max=100"`
+	Colour string `json:"colour" binding:"max=20"`
 }
+
+const (
+	maxTagNameLen   = 100
+	maxTagColourLen = 20
+)
 
 func (h *Handler) Create(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
 	var req createTagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -99,7 +104,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var req updateTagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -109,10 +114,19 @@ func (h *Handler) Update(c *gin.Context) {
 			response.BadRequest(c, "name cannot be empty")
 			return
 		}
+		if len(name) > maxTagNameLen {
+			response.BadRequest(c, "name must be at most 100 characters")
+			return
+		}
 		existing.Name = name
 	}
 	if req.Colour != nil {
-		existing.Colour = strings.TrimSpace(*req.Colour)
+		colour := strings.TrimSpace(*req.Colour)
+		if len(colour) > maxTagColourLen {
+			response.BadRequest(c, "colour must be at most 20 characters")
+			return
+		}
+		existing.Colour = colour
 	}
 
 	if err := h.repo.Update(c.Request.Context(), &existing); err != nil {

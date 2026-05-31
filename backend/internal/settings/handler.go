@@ -3,8 +3,12 @@ package settings
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/pkg/response"
 )
+
+var validSettingKeys = map[string]bool{
+	"registration_enabled": true,
+}
 
 type Handler struct {
 	repo *Repository
@@ -31,8 +35,15 @@ type UpdateSettingsRequest struct {
 func (h *Handler) UpdateSettings(c *gin.Context) {
 	var req UpdateSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
+	}
+
+	for key := range req.Settings {
+		if !validSettingKeys[key] {
+			response.BadRequest(c, "unknown setting: "+key)
+			return
+		}
 	}
 
 	for key, value := range req.Settings {

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { RequireAuth } from "@/components/RequireAuth";
 import { RequireAdmin } from "@/components/RequireAdmin";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -11,6 +11,10 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
 const Callback = lazy(() => import("@/pages/auth/Callback"));
+const LinkCallback = lazy(() => import("@/pages/auth/LinkCallback"));
+const VerifyEmailRequired = lazy(() => import("@/pages/auth/VerifyEmailRequired"));
+const VerifyEmail = lazy(() => import("@/pages/auth/VerifyEmail"));
+const ConfirmEmailChange = lazy(() => import("@/pages/auth/ConfirmEmailChange"));
 const WinsList = lazy(() => import("@/pages/wins/WinsList"));
 const WinForm = lazy(() => import("@/pages/wins/WinForm"));
 const JobsList = lazy(() => import("@/pages/jobs/JobsList"));
@@ -19,14 +23,16 @@ const CertificationsList = lazy(() => import("@/pages/certifications/Certificati
 const CertificationForm = lazy(() => import("@/pages/certifications/CertificationForm"));
 const SkillsList = lazy(() => import("@/pages/skills/SkillsList"));
 const SkillForm = lazy(() => import("@/pages/skills/SkillForm"));
+const ImportPage = lazy(() => import("@/pages/import/ImportPage"));
 const ExportPage = lazy(() => import("@/pages/export/ExportPage"));
-const Settings = lazy(() => import("@/pages/Settings"));
 const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
 const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 const AdminBadges = lazy(() => import("@/pages/admin/AdminBadges"));
 const Achievements = lazy(() => import("@/pages/gamification/Achievements"));
 const ProfileSettings = lazy(() => import("@/pages/profile/ProfileSettings"));
 const PublicProfile = lazy(() => import("@/pages/profile/PublicProfile"));
+const Support = lazy(() => import("@/pages/support/Support"));
+const SupportThankYou = lazy(() => import("@/pages/support/ThankYou"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
@@ -56,10 +62,43 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: "/auth/callback",
+    path: "/auth/:provider/callback",
     element: (
       <SuspenseWrapper>
         <Callback />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/auth/link/:provider/callback",
+    element: (
+      <SuspenseWrapper>
+        <LinkCallback />
+      </SuspenseWrapper>
+    ),
+  },
+
+  {
+    path: "/verify-email-required",
+    element: (
+      <SuspenseWrapper>
+        <VerifyEmailRequired />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/verify-email",
+    element: (
+      <SuspenseWrapper>
+        <VerifyEmail />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    path: "/confirm-email-change",
+    element: (
+      <SuspenseWrapper>
+        <ConfirmEmailChange />
       </SuspenseWrapper>
     ),
   },
@@ -207,9 +246,13 @@ export const router = createBrowserRouter([
           },
           {
             path: "settings",
+            element: <Navigate to="/profile" replace />,
+          },
+          {
+            path: "import",
             element: (
               <SuspenseWrapper>
-                <Settings />
+                <ImportPage />
               </SuspenseWrapper>
             ),
           },
@@ -218,6 +261,22 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <ExportPage />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "support",
+            element: (
+              <SuspenseWrapper>
+                <Support />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "support/thank-you",
+            element: (
+              <SuspenseWrapper>
+                <SupportThankYou />
               </SuspenseWrapper>
             ),
           },

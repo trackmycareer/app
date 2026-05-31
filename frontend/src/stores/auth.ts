@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage, devtools } from "zustand/middleware";
 import type {} from "@redux-devtools/extension";
 import type { User } from "@/types";
+import { apiClient } from "@/lib/api";
 
 interface AuthState {
   user: User | null;
@@ -10,7 +11,7 @@ interface AuthState {
   isLoading: boolean;
 
   login: (user: User, token: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   setAccessToken: (token: string) => void;
   updateUser: (updates: Partial<User>) => void;
   setLoading: (loading: boolean) => void;
@@ -33,7 +34,12 @@ export const useAuthStore = create<AuthState>()(
           );
         },
 
-        logout: () => {
+        logout: async () => {
+          try {
+            await apiClient.auth.logout();
+          } catch {
+            // Proceed with local logout even if server call fails
+          }
           set(
             { user: null, accessToken: null, isAuthenticated: false, isLoading: false },
             false,

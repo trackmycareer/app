@@ -29,6 +29,12 @@ func (r *Repository) List(ctx context.Context, userID uuid.UUID, params ListPara
 		argIdx++
 	}
 
+	if len(params.Statuses) > 0 {
+		where += fmt.Sprintf(` AND status = ANY($%d)`, argIdx)
+		args = append(args, params.Statuses)
+		argIdx++
+	}
+
 	if params.Search != "" {
 		where += fmt.Sprintf(` AND (name ILIKE $%d OR provider ILIKE $%d)`, argIdx, argIdx)
 		args = append(args, "%"+params.Search+"%")

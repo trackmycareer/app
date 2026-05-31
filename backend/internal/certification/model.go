@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 type Certification struct {
@@ -26,8 +26,9 @@ type Certification struct {
 }
 
 type ListParams struct {
-	Search string
-	Status string
-	Limit  int
-	Offset int
+	Search   string
+	Status   string
+	Statuses []string
+	Limit    int
+	Offset   int
 }

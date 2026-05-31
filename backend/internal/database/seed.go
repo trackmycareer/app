@@ -6,7 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
+
+	pwHash "github.com/trackmycareer/app/internal/password"
 )
 
 func SeedAdmin(ctx context.Context, pool *pgxpool.Pool, email, password string) {
@@ -24,7 +25,7 @@ func SeedAdmin(ctx context.Context, pool *pgxpool.Pool, email, password string) 
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := pwHash.Hash(password)
 	if err != nil {
 		log.Printf("hashing admin password: %v", err)
 		return
@@ -33,7 +34,7 @@ func SeedAdmin(ctx context.Context, pool *pgxpool.Pool, email, password string) 
 	_, err = pool.Exec(ctx, `
 		INSERT INTO users (id, email, password_hash, name, provider, is_admin)
 		VALUES ($1, $2, $3, $4, 'email', true)`,
-		uuid.New(), email, string(hash), "Admin")
+		uuid.New(), email, hash, "Admin")
 	if err != nil {
 		log.Printf("seeding admin user: %v", err)
 		return

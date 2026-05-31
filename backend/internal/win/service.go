@@ -6,12 +6,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 var validCategories = []string{
 	"shipped_feature", "positive_feedback", "process_improvement",
 	"cost_saving", "leadership_moment", "general",
+	"project", "publication", "membership",
 }
 
 type Service struct {

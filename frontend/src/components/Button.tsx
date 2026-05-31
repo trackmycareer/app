@@ -15,14 +15,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--accent-default)] text-white hover:bg-[var(--accent-bright)] " +
+    "bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] hover:bg-[var(--accent-bright)] " +
     "hover:shadow-md hover:shadow-[var(--accent-default)]/20 " +
     "focus-visible:ring-[var(--accent-default)]",
   secondary:
     "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] " +
     "hover:bg-[var(--bg-hover)] focus-visible:ring-[var(--border-strong)]",
   danger:
-    "bg-[var(--color-error)] text-white hover:bg-red-500 " +
+    "bg-[var(--color-error)] text-white hover:brightness-110 " +
     "focus-visible:ring-[var(--color-error)]",
   ghost:
     "bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] " +

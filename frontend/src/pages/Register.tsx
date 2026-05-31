@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
-import { API_URL } from "@/lib/constants";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { GithubIcon, GoogleIcon, BriefcaseIcon } from "@/components/icons";
@@ -19,6 +18,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
   const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
 
@@ -67,7 +67,12 @@ export default function Register() {
 
       const userRes = await apiClient.user.getCurrent();
       login(userRes.data.data, token);
-      navigate("/wins", { replace: true });
+
+      if (newsletterOptIn) {
+        apiClient.user.updateNewsletter({ opt_in: true }).catch(() => {});
+      }
+
+      navigate("/verify-email-required", { replace: true });
     } catch (err: unknown) {
       const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
       if (axiosError.response?.status === 409) {
@@ -82,8 +87,13 @@ export default function Register() {
     }
   };
 
-  const handleOAuth = (provider: string) => {
-    window.location.href = `${API_URL}/auth/${provider}`;
+  const handleOAuth = async (provider: string) => {
+    try {
+      const res = await apiClient.auth.initiateOAuth(provider);
+      window.location.href = res.data.data.auth_url;
+    } catch {
+      // Error toast handled by interceptor
+    }
   };
 
   if (registrationEnabled === null) {
@@ -148,7 +158,7 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <p
-              className="rounded-[var(--radius-md)] bg-red-500/10 px-3 py-2 text-sm
+              className="rounded-[var(--radius-md)] bg-[var(--color-error)]/10 px-3 py-2 text-sm
                 text-[var(--color-error)]"
               role="alert"
             >
@@ -193,6 +203,18 @@ export default function Register() {
             required
             autoComplete="new-password"
           />
+          <label className="flex cursor-pointer items-center gap-2 py-1">
+            <input
+              type="checkbox"
+              checked={newsletterOptIn}
+              onChange={(e) => setNewsletterOptIn(e.target.checked)}
+              className="h-4 w-4 rounded border-[var(--border-default)] text-[var(--accent-default)]
+                focus:ring-[var(--accent-default)]"
+            />
+            <span className="text-sm text-[var(--text-secondary)]">
+              Send me product updates and tips (optional)
+            </span>
+          </label>
           <Button type="submit" className="w-full" loading={loading}>
             Create account
           </Button>

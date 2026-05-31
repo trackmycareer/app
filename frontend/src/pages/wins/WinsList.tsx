@@ -151,7 +151,7 @@ export default function WinsList() {
                 />
               </div>
               <div className="flex gap-2 sm:shrink-0">
-                <div className="w-36">
+                <div className="flex-1 sm:flex-none sm:w-36">
                   <TextInput
                     type="date"
                     value={occurredOn}
@@ -159,7 +159,7 @@ export default function WinsList() {
                     aria-label="Date"
                   />
                 </div>
-                <div className="w-44">
+                <div className="flex-1 sm:flex-none sm:w-44">
                   <Select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -303,7 +303,7 @@ export default function WinsList() {
                 No wins recorded yet
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
-                Your wins are waiting to be told. Record your first one — future you will thank you.
+                Your wins are waiting to be told. Record your first one. Future you will thank you.
               </p>
             </div>
           )}
@@ -316,7 +316,7 @@ export default function WinsList() {
                   className="animate-fade-in-up group rounded-[var(--radius-lg)] border
                     border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition-all
                     duration-200 hover:-translate-y-0.5 hover:shadow-lg
-                    hover:shadow-black/20 hover:border-[var(--border-default)]"
+                    hover:shadow-stone-900/10 hover:border-[var(--border-default)]"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -360,7 +360,7 @@ export default function WinsList() {
                     </div>
                     <div
                       className="flex shrink-0 gap-1 opacity-0 transition-opacity
-                        group-hover:opacity-100 group-focus-within:opacity-100"
+                        group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
                     >
                       <Button
                         variant="ghost"

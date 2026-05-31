@@ -8,25 +8,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/certification"
-	"github.com/bhcloudlabs/trackmy-career/internal/gamification"
-	"github.com/bhcloudlabs/trackmy-career/internal/job"
-	"github.com/bhcloudlabs/trackmy-career/internal/skill"
-	"github.com/bhcloudlabs/trackmy-career/internal/user"
-	"github.com/bhcloudlabs/trackmy-career/internal/win"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/internal/certification"
+	"github.com/trackmycareer/app/internal/gamification"
+	"github.com/trackmycareer/app/internal/job"
+	"github.com/trackmycareer/app/internal/linkedaccount"
+	"github.com/trackmycareer/app/internal/skill"
+	"github.com/trackmycareer/app/internal/user"
+	"github.com/trackmycareer/app/internal/win"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{1,48}[a-zA-Z0-9]$`)
 
 // Handler manages public profiles and profile settings.
 type Handler struct {
-	userRepo         *user.Repository
-	gamificationRepo *gamification.Repository
-	winRepo          *win.Repository
-	jobRepo          *job.Repository
-	certRepo         *certification.Repository
-	skillRepo        *skill.Repository
+	userRepo             *user.Repository
+	gamificationRepo     *gamification.Repository
+	winRepo              *win.Repository
+	jobRepo              *job.Repository
+	certRepo             *certification.Repository
+	skillRepo            *skill.Repository
+	linkedAccountService *linkedaccount.Service
 }
 
 // NewHandler creates a new profile handler.
@@ -37,14 +39,16 @@ func NewHandler(
 	jobRepo *job.Repository,
 	certRepo *certification.Repository,
 	skillRepo *skill.Repository,
+	linkedAccountService *linkedaccount.Service,
 ) *Handler {
 	return &Handler{
-		userRepo:         userRepo,
-		gamificationRepo: gamificationRepo,
-		winRepo:          winRepo,
-		jobRepo:          jobRepo,
-		certRepo:         certRepo,
-		skillRepo:        skillRepo,
+		userRepo:             userRepo,
+		gamificationRepo:     gamificationRepo,
+		winRepo:              winRepo,
+		jobRepo:              jobRepo,
+		certRepo:             certRepo,
+		skillRepo:            skillRepo,
+		linkedAccountService: linkedAccountService,
 	}
 }
 
@@ -66,29 +70,44 @@ func parseVisibility(raw json.RawMessage) visibilityConfig {
 
 // profileSettingsResponse is the response for GET /user/me/profile.
 type profileSettingsResponse struct {
+	Name              string          `json:"name"`
 	Username          *string         `json:"username"`
 	Bio               *string         `json:"bio"`
+	Location          *string         `json:"location"`
+	Headline          *string         `json:"headline"`
+	OpenToWork        string          `json:"open_to_work"`
 	ProfileVisibility json.RawMessage `json:"profile_visibility"`
 }
 
 // updateProfileRequest is the request body for PUT /user/me/profile.
 type updateProfileRequest struct {
+	Name              *string         `json:"name"`
 	Username          *string         `json:"username"`
 	Bio               *string         `json:"bio"`
+	Location          *string         `json:"location"`
+	Headline          *string         `json:"headline"`
+	OpenToWork        *string         `json:"open_to_work"`
 	ProfileVisibility json.RawMessage `json:"profile_visibility"`
 }
 
 // publicProfileResponse is the response for GET /profiles/:username.
 type publicProfileResponse struct {
-	Name           string             `json:"name"`
-	Bio            *string            `json:"bio,omitempty"`
-	Level          int                `json:"level"`
-	LevelTitle     string             `json:"level_title"`
-	Badges         []gamification.Badge `json:"badges"`
-	Jobs           []job.Job          `json:"jobs,omitempty"`
-	Certifications []certification.Certification `json:"certifications,omitempty"`
-	Skills         []skill.Skill      `json:"skills,omitempty"`
-	Wins           []win.Win          `json:"wins,omitempty"`
+	Name           string                              `json:"name"`
+	Bio            *string                             `json:"bio,omitempty"`
+	AvatarURL      *string                             `json:"avatar_url,omitempty"`
+	Location       *string                             `json:"location,omitempty"`
+	Headline       *string                             `json:"headline,omitempty"`
+	OpenToWork     string                              `json:"open_to_work"`
+	IsStaff        bool                                `json:"is_staff"`
+	IsSupporter    bool                                `json:"is_supporter"`
+	LinkedAccounts []linkedaccount.PublicLinkedAccount `json:"linked_accounts"`
+	Level          int                                 `json:"level"`
+	LevelTitle     string                              `json:"level_title"`
+	Badges         []gamification.Badge                `json:"badges"`
+	Jobs           []job.Job                           `json:"jobs,omitempty"`
+	Certifications []certification.Certification       `json:"certifications,omitempty"`
+	Skills         []skill.Skill                       `json:"skills,omitempty"`
+	Wins           []win.Win                           `json:"wins,omitempty"`
 }
 
 // GetProfileSettings returns the profile settings for the authenticated user.
@@ -102,8 +121,12 @@ func (h *Handler) GetProfileSettings(c *gin.Context) {
 	}
 
 	resp := profileSettingsResponse{
+		Name:              u.Name,
 		Username:          u.Username,
 		Bio:               u.Bio,
+		Location:          u.Location,
+		Headline:          u.Headline,
+		OpenToWork:        u.OpenToWork,
 		ProfileVisibility: u.ProfileVisibility,
 	}
 
@@ -116,7 +139,7 @@ func (h *Handler) UpdateProfileSettings(c *gin.Context) {
 
 	var req updateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -128,9 +151,26 @@ func (h *Handler) UpdateProfileSettings(c *gin.Context) {
 	}
 
 	// Determine final values, keeping existing if not provided.
+	finalName := u.Name
 	finalUsername := u.Username
 	finalBio := u.Bio
 	finalVisibility := u.ProfileVisibility
+	finalLocation := u.Location
+	finalHeadline := u.Headline
+	finalOpenToWork := u.OpenToWork
+
+	if req.Name != nil {
+		trimmed := strings.TrimSpace(*req.Name)
+		if trimmed == "" {
+			response.BadRequest(c, "name is required")
+			return
+		}
+		if len(trimmed) > 255 {
+			response.BadRequest(c, "name must be at most 255 characters")
+			return
+		}
+		finalName = trimmed
+	}
 
 	if req.Username != nil {
 		trimmed := strings.TrimSpace(*req.Username)
@@ -155,21 +195,83 @@ func (h *Handler) UpdateProfileSettings(c *gin.Context) {
 	}
 
 	if req.Bio != nil {
+		if len(*req.Bio) > 2000 {
+			response.BadRequest(c, "bio must be at most 2000 characters")
+			return
+		}
 		finalBio = req.Bio
 	}
 
 	if len(req.ProfileVisibility) > 0 {
-		finalVisibility = req.ProfileVisibility
+		if len(req.ProfileVisibility) > 1024 {
+			response.BadRequest(c, "profile visibility payload is too large")
+			return
+		}
+		// Parse into the typed struct to strip unknown fields and ensure
+		// only the expected boolean fields are stored.
+		var vis visibilityConfig
+		if err := json.Unmarshal(req.ProfileVisibility, &vis); err != nil {
+			response.BadRequest(c, "profile visibility must be a valid JSON object")
+			return
+		}
+		sanitised, err := json.Marshal(vis)
+		if err != nil {
+			response.InternalError(c, err)
+			return
+		}
+		finalVisibility = sanitised
 	}
 
-	if err := h.userRepo.UpdateProfile(c.Request.Context(), userID, finalUsername, finalBio, finalVisibility); err != nil {
+	if req.Location != nil {
+		trimmed := strings.TrimSpace(*req.Location)
+		if len(trimmed) > 255 {
+			response.BadRequest(c, "location must be 255 characters or fewer")
+			return
+		}
+		if trimmed == "" {
+			finalLocation = nil
+		} else {
+			finalLocation = &trimmed
+		}
+	}
+
+	if req.Headline != nil {
+		trimmed := strings.TrimSpace(*req.Headline)
+		if len(trimmed) > 255 {
+			response.BadRequest(c, "headline must be 255 characters or fewer")
+			return
+		}
+		if trimmed == "" {
+			finalHeadline = nil
+		} else {
+			finalHeadline = &trimmed
+		}
+	}
+
+	if req.OpenToWork != nil {
+		val := strings.TrimSpace(*req.OpenToWork)
+		switch val {
+		case "not_looking", "open", "actively_looking":
+			finalOpenToWork = val
+		default:
+			response.BadRequest(c, "open_to_work must be one of: not_looking, open, actively_looking")
+			return
+		}
+	}
+
+	if err := h.userRepo.UpdateProfile(c.Request.Context(), userID, finalName, finalUsername, finalBio, finalVisibility,
+		finalLocation, finalHeadline, finalOpenToWork); err != nil {
 		response.InternalError(c, err)
 		return
 	}
 
 	response.OK(c, profileSettingsResponse{
+		Name:              finalName,
 		Username:          finalUsername,
 		Bio:               finalBio,
+		Location:          finalLocation,
+		Headline:          finalHeadline,
+		OpenToWork:        finalOpenToWork,
 		ProfileVisibility: finalVisibility,
 	})
 }
@@ -217,12 +319,25 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		earnedBadges = []gamification.Badge{}
 	}
 
+	linkedAccounts, err := h.linkedAccountService.ListPublicByUser(ctx, u.ID)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
 	resp := publicProfileResponse{
-		Name:       u.Name,
-		Bio:        u.Bio,
-		Level:      level,
-		LevelTitle: levelTitle,
-		Badges:     earnedBadges,
+		Name:           u.Name,
+		Bio:            u.Bio,
+		AvatarURL:      u.AvatarURL,
+		Location:       u.Location,
+		Headline:       u.Headline,
+		OpenToWork:     u.OpenToWork,
+		IsStaff:        u.IsAdmin,
+		IsSupporter:    u.IsOneTimeSupporter || u.IsSubscriber,
+		LinkedAccounts: linkedAccounts,
+		Level:          level,
+		LevelTitle:     levelTitle,
+		Badges:         earnedBadges,
 	}
 
 	// Conditionally include sections based on visibility settings.
@@ -239,7 +354,10 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 	}
 
 	if vis.Certifications {
-		certs, _, certErr := h.certRepo.List(ctx, u.ID, certification.ListParams{Limit: 100})
+		certs, _, certErr := h.certRepo.List(ctx, u.ID, certification.ListParams{
+			Limit:    100,
+			Statuses: []string{"passed", "expired"},
+		})
 		if certErr != nil {
 			response.InternalError(c, certErr)
 			return

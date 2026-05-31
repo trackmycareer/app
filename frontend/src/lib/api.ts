@@ -17,6 +17,14 @@ import type {
   UserStreak,
   ProfileSettings,
   PublicProfile,
+  LinkedAccount,
+  ImportPreview,
+  ImportResult,
+  CompanyResult,
+  JobTitleResult,
+  CertSearchResult,
+  SkillSearchResult,
+  LocationResult,
 } from "@/types";
 
 const api = axios.create({
@@ -28,7 +36,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor — add auth token
+// Request interceptor: add auth token
 api.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().accessToken;
@@ -43,7 +51,11 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor — handle errors
+// Single-flight refresh: all concurrent 401s share the same refresh promise
+// so only one actual HTTP call is made to /auth/refresh.
+let refreshPromise: Promise<string> | null = null;
+
+// Response interceptor: handle errors
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -59,18 +71,36 @@ api.interceptors.response.use(
         if (originalRequest && !originalRequest._retry) {
           originalRequest._retry = true;
           try {
-            const res = await axios.post(`${API_URL}/auth/refresh`, null, {
-              withCredentials: true,
-            });
-            const newToken = res.data.data.access_token;
-            useAuthStore.getState().setAccessToken(newToken);
+            if (!refreshPromise) {
+              refreshPromise = axios
+                .post(`${API_URL}/auth/refresh`, null, { withCredentials: true })
+                .then((res) => {
+                  const newToken = res.data.data.access_token;
+                  useAuthStore.getState().setAccessToken(newToken);
+                  return newToken;
+                })
+                .finally(() => {
+                  refreshPromise = null;
+                });
+            }
+            const newToken = await refreshPromise;
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return api(originalRequest);
           } catch {
-            useAuthStore.getState().logout();
+            // Clear local state directly to avoid a recursive loop.
+            // The server-side token is already invalid, so no need to call /auth/logout.
+            useAuthStore.setState(
+              { user: null, accessToken: null, isAuthenticated: false, isLoading: false },
+            );
             toast.error("Session expired. Please sign in again.");
           }
         }
+      } else if (status === 403) {
+        const code = (error.response?.data as { code?: string })?.code;
+        if (code === "EMAIL_NOT_VERIFIED") {
+          return Promise.reject(error);
+        }
+        toast.error(message || `Request failed (${status})`);
       } else if (status !== 422) {
         toast.error(message || `Request failed (${status})`);
       }
@@ -84,13 +114,26 @@ api.interceptors.response.use(
 
 // Typed API client
 export const apiClient = {
+  config: {
+    get: () => api.get<{ data: { polar_enabled: boolean } }>("/config"),
+  },
+  support: {
+    getCheckoutUrl: (type: "one_time" | "subscription") =>
+      api.get<{ data: { checkout_url: string } }>(`/support/checkout?type=${type}`),
+    getPortalUrl: () => api.get<{ data: { portal_url: string } }>("/support/portal"),
+  },
   auth: {
     register: (data: { email: string; password: string; name: string }) =>
       api.post<{ data: { access_token: string } }>("/auth/register", data),
     login: (data: { email: string; password: string }) =>
       api.post<{ data: { access_token: string } }>("/auth/login", data),
     refresh: () => api.post<{ data: { access_token: string } }>("/auth/refresh"),
+    logout: () => api.post("/auth/logout"),
     providers: () => api.get<{ data: AuthProvidersResponse }>("/auth/providers"),
+    initiateOAuth: (provider: string) =>
+      api.get<{ data: { auth_url: string } }>(`/auth/${provider}`),
+    oauthCallback: (provider: string, data: { code: string; state: string }) =>
+      api.post<{ data: { access_token: string } }>(`/auth/${provider}/callback`, data),
   },
   user: {
     getCurrent: () => api.get<{ data: User }>("/user/me"),
@@ -98,12 +141,29 @@ export const apiClient = {
       api.put<{ data: User }>("/user/me", data),
     changePassword: (data: { current_password: string; new_password: string }) =>
       api.put("/user/me/password", data),
+    uploadAvatar: (file: File) => {
+      const form = new FormData();
+      form.append("avatar", file);
+      return api.post<{ data: User }>("/user/me/avatar", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
+    deleteAccount: (data: { password?: string; confirmation?: string }) =>
+      api.post("/user/me/delete", data),
+    updateNewsletter: (data: { opt_in: boolean }) =>
+      api.put<{ data: User }>("/user/me/newsletter", data),
+  },
+  verification: {
+    send: () => api.post("/auth/verify-email/send"),
+    verify: (token: string) => api.post("/auth/verify-email/confirm", { token }),
+    requestEmailChange: (data: { new_email: string; password: string }) =>
+      api.post("/user/me/email/change", data),
+    confirmEmailChange: (token: string) => api.post("/user/me/email/confirm", { token }),
   },
   wins: {
     list: (params?: Record<string, string | number>) =>
       api.get<{ data: Win[] }>("/wins", { params }),
-    create: (data: Partial<Win> & { tag_ids?: string[] }) =>
-      api.post<{ data: Win }>("/wins", data),
+    create: (data: Partial<Win> & { tag_ids?: string[] }) => api.post<{ data: Win }>("/wins", data),
     getById: (id: string) => api.get<{ data: Win }>(`/wins/${id}`),
     update: (id: string, data: Partial<Win> & { tag_ids?: string[] }) =>
       api.put<{ data: Win }>(`/wins/${id}`, data),
@@ -111,8 +171,7 @@ export const apiClient = {
   },
   tags: {
     list: () => api.get<{ data: Tag[] }>("/tags"),
-    create: (data: { name: string; colour: string }) =>
-      api.post<{ data: Tag }>("/tags", data),
+    create: (data: { name: string; colour: string }) => api.post<{ data: Tag }>("/tags", data),
     update: (id: string, data: { name?: string; colour?: string }) =>
       api.put<{ data: Tag }>(`/tags/${id}`, data),
     delete: (id: string) => api.delete(`/tags/${id}`),
@@ -124,12 +183,23 @@ export const apiClient = {
     update: (id: string, data: Partial<Job>) => api.put<{ data: Job }>(`/jobs/${id}`, data),
     delete: (id: string) => api.delete(`/jobs/${id}`),
   },
+  companies: {
+    search: (q: string) =>
+      api.get<{ data: { results: CompanyResult[] } }>("/companies/search", { params: { q } }),
+  },
+  jobTitles: {
+    search: (q: string) =>
+      api.get<{ data: { results: JobTitleResult[] } }>("/jobtitles/search", { params: { q } }),
+  },
+  locations: {
+    search: (q: string) =>
+      api.get<{ data: { results: LocationResult[] } }>("/locations/search", { params: { q } }),
+  },
   certifications: {
     list: (params?: Record<string, string | number>) =>
-      api.get<{ data: { certifications: Certification[]; total: number } }>(
-        "/certifications",
-        { params },
-      ),
+      api.get<{ data: { certifications: Certification[]; total: number } }>("/certifications", {
+        params,
+      }),
     create: (data: Partial<Certification>) =>
       api.post<{ data: Certification }>("/certifications", data),
     getById: (id: string) => api.get<{ data: Certification }>(`/certifications/${id}`),
@@ -138,23 +208,28 @@ export const apiClient = {
     updateStatus: (id: string, status: string) =>
       api.patch<{ data: Certification }>(`/certifications/${id}/status`, { status }),
     delete: (id: string) => api.delete(`/certifications/${id}`),
+    search: (q: string) =>
+      api.get<{ data: { results: CertSearchResult[] } }>("/certifications/search", {
+        params: { q },
+      }),
   },
   skills: {
-    list: (params?: Record<string, string>) =>
-      api.get<{ data: Skill[] }>("/skills", { params }),
+    list: (params?: Record<string, string>) => api.get<{ data: Skill[] }>("/skills", { params }),
     create: (data: Partial<Skill>) => api.post<{ data: Skill }>("/skills", data),
     getById: (id: string) => api.get<{ data: Skill }>(`/skills/${id}`),
-    update: (id: string, data: Partial<Skill>) =>
-      api.put<{ data: Skill }>(`/skills/${id}`, data),
+    update: (id: string, data: Partial<Skill>) => api.put<{ data: Skill }>(`/skills/${id}`, data),
     delete: (id: string) => api.delete(`/skills/${id}`),
     addEvidence: (id: string, data: { evidence_type: string; evidence_id: string }) =>
       api.post(`/skills/${id}/evidence`, data),
     removeEvidence: (id: string, evidenceId: string) =>
       api.delete(`/skills/${id}/evidence/${evidenceId}`),
+    search: (q: string) =>
+      api.get<{ data: { results: SkillSearchResult[] } }>("/skills/search", {
+        params: { q },
+      }),
   },
   gamification: {
-    progress: () =>
-      api.get<{ data: GamificationProgress }>("/gamification/progress"),
+    progress: () => api.get<{ data: GamificationProgress }>("/gamification/progress"),
     badges: () => api.get<{ data: Badge[] }>("/gamification/badges"),
     heatmap: (days?: number) =>
       api.get<{ data: HeatmapEntry[] }>("/gamification/heatmap", {
@@ -163,12 +238,38 @@ export const apiClient = {
     streak: () => api.get<{ data: UserStreak }>("/gamification/streak"),
   },
   profile: {
-    getSettings: () =>
-      api.get<{ data: ProfileSettings }>("/user/me/profile"),
+    getSettings: () => api.get<{ data: ProfileSettings }>("/user/me/profile"),
     updateSettings: (data: Partial<ProfileSettings>) =>
       api.put<{ data: ProfileSettings }>("/user/me/profile", data),
-    getPublic: (username: string) =>
-      api.get<{ data: PublicProfile }>(`/profiles/${username}`),
+    getPublic: (username: string) => api.get<{ data: PublicProfile }>(`/profiles/${username}`),
+  },
+  linkedAccounts: {
+    list: () => api.get<{ data: LinkedAccount[] }>("/linked-accounts"),
+    initiateLink: (provider: string) =>
+      api.get<{ data: { auth_url: string } }>(`/linked-accounts/link/${provider}`),
+    oauthCallback: (provider: string, data: { code: string; state: string }) =>
+      api.post<{ data: LinkedAccount }>(`/linked-accounts/link/${provider}/callback`, data),
+    addWebsite: (data: { url: string }) =>
+      api.post<{ data: LinkedAccount }>("/linked-accounts/website", data),
+    verifyWebsite: () =>
+      api.post<{ data: LinkedAccount }>("/linked-accounts/website/verify"),
+    unlink: (provider: string) => api.delete(`/linked-accounts/${provider}`),
+  },
+  import: {
+    preview: (file: File, source?: string, entityType?: string) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (source) form.append("source", source);
+      if (entityType) form.append("entity_type", entityType);
+      return api.post<{ data: ImportPreview }>("/import/preview", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 30000,
+      });
+    },
+    confirm: (preview: ImportPreview) =>
+      api.post<{ data: ImportResult }>("/import/confirm", preview),
+    downloadTemplate: (type: string) =>
+      api.get(`/import/templates/${type}`, { responseType: "blob" }),
   },
   export: {
     json: () => api.get("/export/json", { responseType: "blob" }),
@@ -185,16 +286,14 @@ export const apiClient = {
     },
     badges: {
       list: () => api.get<{ data: Badge[] }>("/admin/badges"),
-      create: (data: Partial<Badge>) =>
-        api.post<{ data: Badge }>("/admin/badges", data),
+      create: (data: Partial<Badge>) => api.post<{ data: Badge }>("/admin/badges", data),
       update: (id: string, data: Partial<Badge>) =>
         api.put<{ data: Badge }>(`/admin/badges/${id}`, data),
       delete: (id: string) => api.delete(`/admin/badges/${id}`),
     },
     settings: {
       get: () => api.get<{ data: Record<string, string> }>("/admin/settings"),
-      update: (data: { settings: Record<string, string> }) =>
-        api.put("/admin/settings", data),
+      update: (data: { settings: Record<string, string> }) => api.put("/admin/settings", data),
     },
     stats: {
       get: () => api.get<{ data: Record<string, number> }>("/admin/stats"),

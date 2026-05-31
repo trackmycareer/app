@@ -1,27 +1,39 @@
 package auth
 
 import (
+	"context"
+	"crypto/subtle"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/settings"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/internal/settings"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
-type Handler struct {
-	service      *Service
-	oauthManager *OAuthManager
-	settingsRepo *settings.Repository
-	frontendURL  string
+// VerificationSender sends a verification email to a user.
+// Implemented by the verification service; defined here to avoid circular imports.
+type VerificationSender interface {
+	SendVerification(ctx context.Context, userID uuid.UUID) error
 }
 
-func NewHandler(service *Service, oauthManager *OAuthManager, settingsRepo *settings.Repository, frontendURL string) *Handler {
+type Handler struct {
+	service            *Service
+	oauthManager       *OAuthManager
+	settingsRepo       *settings.Repository
+	frontendURL        string
+	verificationSender VerificationSender
+}
+
+func NewHandler(service *Service, oauthManager *OAuthManager, settingsRepo *settings.Repository, frontendURL string, vs VerificationSender) *Handler {
 	return &Handler{
-		service:      service,
-		oauthManager: oauthManager,
-		settingsRepo: settingsRepo,
-		frontendURL:  frontendURL,
+		service:            service,
+		oauthManager:       oauthManager,
+		settingsRepo:       settingsRepo,
+		frontendURL:        frontendURL,
+		verificationSender: vs,
 	}
 }
 
@@ -38,24 +50,32 @@ func (h *Handler) Register(c *gin.Context) {
 
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
-	tokens, err := h.service.Register(c.Request.Context(), req)
+	result, err := h.service.Register(c.Request.Context(), req)
 	if err != nil {
-		response.Error(c, http.StatusConflict, "could not create account: "+err.Error())
+		response.BadRequest(c, "could not create account")
 		return
 	}
 
-	h.setRefreshCookie(c, tokens.RefreshToken)
-	response.Created(c, gin.H{"access_token": tokens.AccessToken})
+	if h.verificationSender != nil {
+		go func() {
+			if sendErr := h.verificationSender.SendVerification(context.Background(), result.UserID); sendErr != nil {
+				slog.Error("sending verification email", "error", sendErr.Error(), "user_id", result.UserID)
+			}
+		}()
+	}
+
+	h.setRefreshCookie(c, result.Tokens.RefreshToken)
+	response.Created(c, gin.H{"access_token": result.Tokens.AccessToken})
 }
 
 func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -101,34 +121,51 @@ func (h *Handler) OAuthInitiate(c *gin.Context) {
 
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("oauth_state", state, 600, "/api/v1/auth", "", true, true)
-	c.Redirect(http.StatusTemporaryRedirect, url)
+	response.OK(c, gin.H{"auth_url": url})
 }
 
 func (h *Handler) OAuthCallback(c *gin.Context) {
 	provider := c.Param("provider")
-	code := c.Query("code")
-	if code == "" {
-		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=oauth_failed")
+
+	var req struct {
+		Code  string `json:"code" binding:"required"`
+		State string `json:"state" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "code and state are required")
 		return
 	}
 
 	storedState, err := c.Cookie("oauth_state")
-	if err != nil || storedState == "" || storedState != c.Query("state") {
-		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=oauth_failed")
+	if err != nil || storedState == "" || subtle.ConstantTimeCompare([]byte(storedState), []byte(req.State)) != 1 {
+		response.Unauthorised(c, "invalid OAuth state")
 		return
 	}
 
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("oauth_state", "", -1, "/api/v1/auth", "", true, true)
 
-	tokens, err := h.oauthManager.HandleCallback(c.Request.Context(), provider, code)
+	tokens, err := h.oauthManager.HandleCallback(c.Request.Context(), provider, req.Code)
 	if err != nil {
-		c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/login?error=oauth_failed")
+		response.Error(c, http.StatusUnauthorized, "authentication failed")
 		return
 	}
 
 	h.setRefreshCookie(c, tokens.RefreshToken)
-	c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/auth/callback")
+	response.OK(c, gin.H{"access_token": tokens.AccessToken})
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+	if err := h.service.Logout(c.Request.Context(), userID); err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	// Clear the refresh token cookie
+	h.setRefreshCookie(c, "")
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", true, true)
+	response.OK(c, gin.H{"message": "logged out"})
 }
 
 func (h *Handler) Providers(c *gin.Context) {

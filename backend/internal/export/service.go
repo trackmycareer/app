@@ -9,18 +9,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 // ExportData represents the full user data export.
 type ExportData struct {
-	ExportedAt     time.Time           `json:"exported_at"`
-	User           exportUser          `json:"user"`
-	Wins           []exportWin         `json:"wins"`
-	Jobs           []exportJob         `json:"jobs"`
-	Certifications []exportCert        `json:"certifications"`
-	Skills         []exportSkill       `json:"skills"`
-	Tags           []exportTag         `json:"tags"`
+	ExportedAt     time.Time     `json:"exported_at"`
+	User           exportUser    `json:"user"`
+	Wins           []exportWin   `json:"wins"`
+	Jobs           []exportJob   `json:"jobs"`
+	Certifications []exportCert  `json:"certifications"`
+	Skills         []exportSkill `json:"skills"`
+	Tags           []exportTag   `json:"tags"`
 }
 
 type exportUser struct {
@@ -49,7 +49,7 @@ type exportJob struct {
 	EndDate          *types.Date `json:"end_date,omitempty"`
 	EmploymentType   string      `json:"employment_type"`
 	Location         *string     `json:"location,omitempty"`
-	Remote           bool        `json:"remote"`
+	WorkMode         string      `json:"work_mode"`
 	Responsibilities *string     `json:"responsibilities,omitempty"`
 }
 
@@ -184,7 +184,7 @@ func (s *Service) ExportJSON(ctx context.Context, userID uuid.UUID) (ExportData,
 
 	// Fetch jobs
 	jobRows, err := s.pool.Query(ctx,
-		`SELECT company, title, start_date, end_date, employment_type, location, remote, responsibilities
+		`SELECT company, title, start_date, end_date, employment_type, location, work_mode, responsibilities
 		FROM jobs WHERE user_id = $1 ORDER BY start_date DESC`, userID)
 	if err != nil {
 		return ExportData{}, fmt.Errorf("fetching jobs for export: %w", err)
@@ -195,7 +195,7 @@ func (s *Service) ExportJSON(ctx context.Context, userID uuid.UUID) (ExportData,
 	for jobRows.Next() {
 		var j exportJob
 		if err := jobRows.Scan(&j.Company, &j.Title, &j.StartDate, &j.EndDate,
-			&j.EmploymentType, &j.Location, &j.Remote, &j.Responsibilities); err != nil {
+			&j.EmploymentType, &j.Location, &j.WorkMode, &j.Responsibilities); err != nil {
 			return ExportData{}, fmt.Errorf("scanning job: %w", err)
 		}
 		data.Jobs = append(data.Jobs, j)
@@ -280,8 +280,8 @@ func (s *Service) ExportMarkdown(ctx context.Context, userID uuid.UUID) (string,
 			if j.Location != nil && *j.Location != "" {
 				b.WriteString(fmt.Sprintf("**Location:** %s\n", *j.Location))
 			}
-			if j.Remote {
-				b.WriteString("**Remote:** Yes\n")
+			if j.WorkMode != "" && j.WorkMode != "onsite" {
+				b.WriteString(fmt.Sprintf("**Work mode:** %s\n", j.WorkMode))
 			}
 			if j.Responsibilities != nil && *j.Responsibilities != "" {
 				b.WriteString(fmt.Sprintf("\n%s\n", *j.Responsibilities))

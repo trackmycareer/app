@@ -1,0 +1,28 @@
+# Garage S3-compatible object storage configuration.
+# These values are for LOCAL DEVELOPMENT ONLY.
+# For production, generate unique secrets and tokens:
+#   rpc.secret: openssl rand -hex 32
+#   admin.admin_token: openssl rand -hex 32
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "trackmy-admin-token"
+
+[rpc]
+bind_addr = "[::]:3901"
+secret = "b65e1a32c1e1f1d1a1b1c1d1e1f101112131415161718191a1b1c1d1e1f10111"

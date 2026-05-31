@@ -14,8 +14,8 @@ import (
 	oauthgithub "golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/settings"
-	"github.com/bhcloudlabs/trackmy-career/internal/user"
+	"github.com/trackmycareer/app/internal/settings"
+	"github.com/trackmycareer/app/internal/user"
 )
 
 type OAuthProvider struct {
@@ -45,7 +45,7 @@ func NewOAuthManager(
 	jwtManager *JWTManager,
 	googleClientID, googleClientSecret string,
 	githubClientID, githubClientSecret string,
-	redirectBase string,
+	frontendURL string,
 ) *OAuthManager {
 	m := &OAuthManager{
 		providers:    make(map[string]*OAuthProvider),
@@ -60,7 +60,7 @@ func NewOAuthManager(
 			config: &oauth2.Config{
 				ClientID:     googleClientID,
 				ClientSecret: googleClientSecret,
-				RedirectURL:  redirectBase + "/api/v1/auth/google/callback",
+				RedirectURL:  frontendURL + "/auth/google/callback",
 				Scopes:       []string{"openid", "email", "profile"},
 				Endpoint:     google.Endpoint,
 			},
@@ -91,7 +91,7 @@ func NewOAuthManager(
 			config: &oauth2.Config{
 				ClientID:     githubClientID,
 				ClientSecret: githubClientSecret,
-				RedirectURL:  redirectBase + "/api/v1/auth/github/callback",
+				RedirectURL:  frontendURL + "/auth/github/callback",
 				Scopes:       []string{"user:email", "read:user"},
 				Endpoint:     oauthgithub.Endpoint,
 			},
@@ -183,7 +183,7 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, providerName, code st
 		return TokenPair{}, fmt.Errorf("parsing user info: %w", err)
 	}
 
-	// For GitHub, email may be private — fetch from emails endpoint
+	// For GitHub, email may be private. Fetch from emails endpoint.
 	if providerName == "github" && oUser.Email == "" {
 		email, emailErr := fetchGitHubEmail(client)
 		if emailErr == nil {
@@ -201,7 +201,7 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, providerName, code st
 		return TokenPair{}, fmt.Errorf("upserting user: %w", err)
 	}
 
-	return m.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin)
+	return m.jwtManager.GenerateTokenPair(u.ID, u.Email, u.IsAdmin, u.EmailVerified, u.TokenVersion)
 }
 
 func (m *OAuthManager) upsertUser(ctx context.Context, providerName string, oUser oauthUser) (*user.User, error) {
@@ -226,16 +226,17 @@ func (m *OAuthManager) upsertUser(ctx context.Context, providerName string, oUse
 		return nil, fmt.Errorf("registration is currently disabled")
 	}
 
-	// Create new user
+	// Create new user (OAuth users are auto-verified via provider)
 	avatarURL := oUser.AvatarURL
 	providerID := oUser.ID
 	u := &user.User{
-		ID:         uuid.New(),
-		Email:      oUser.Email,
-		Name:       oUser.Name,
-		AvatarURL:  &avatarURL,
-		Provider:   providerName,
-		ProviderID: &providerID,
+		ID:            uuid.New(),
+		Email:         oUser.Email,
+		Name:          oUser.Name,
+		AvatarURL:     &avatarURL,
+		Provider:      providerName,
+		ProviderID:    &providerID,
+		EmailVerified: true,
 	}
 
 	if err := m.userRepo.Create(ctx, u); err != nil {

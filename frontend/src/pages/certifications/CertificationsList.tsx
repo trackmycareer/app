@@ -10,29 +10,12 @@ import {
   useCertsQuery,
   useDeleteCertMutation,
 } from "@/hooks/queries/useCertsQuery";
+import { StatusBadge, STATUS_OPTIONS } from "./components/StatusBadge";
+import { ProgressBar } from "./components/ProgressBar";
 import type { CertListParams } from "@/hooks/queries/useCertsQuery";
 import type { Certification } from "@/types";
 
 const PAGE_SIZE = 20;
-
-const STATUS_OPTIONS = [
-  { value: "planning", label: "Planning" },
-  { value: "studying", label: "Studying" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "passed", label: "Passed" },
-  { value: "expired", label: "Expired" },
-];
-
-const STATUS_COLOURS: Record<string, { bg: string; text: string }> = {
-  planning: {
-    bg: "bg-[var(--text-tertiary)]/10",
-    text: "text-[var(--text-tertiary)]",
-  },
-  studying: { bg: "bg-blue-500/10", text: "text-blue-500" },
-  scheduled: { bg: "bg-amber-500/10", text: "text-amber-500" },
-  passed: { bg: "bg-emerald-500/10", text: "text-emerald-500" },
-  expired: { bg: "bg-red-500/10", text: "text-red-500" },
-};
 
 function isExpiringSoon(expiryDate: string | null): boolean {
   if (!expiryDate) return false;
@@ -41,38 +24,6 @@ function isExpiringSoon(expiryDate: string | null): boolean {
   const diffMs = expiry.getTime() - now.getTime();
   const diffDays = diffMs / (1000 * 60 * 60 * 24);
   return diffDays > 0 && diffDays <= 90;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colours = STATUS_COLOURS[status] ?? STATUS_COLOURS.planning;
-  const label =
-    STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colours.bg} ${colours.text}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  const clamped = Math.max(0, Math.min(100, value));
-  return (
-    <div
-      className="h-1.5 w-24 overflow-hidden rounded-full bg-[var(--border-subtle)]"
-      role="progressbar"
-      aria-valuenow={clamped}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label={`Study progress ${clamped}%`}
-    >
-      <div
-        className="h-full rounded-full bg-blue-500 transition-all"
-        style={{ width: `${clamped}%` }}
-      />
-    </div>
-  );
 }
 
 export default function CertificationsList() {
@@ -195,7 +146,7 @@ export default function CertificationsList() {
                 No certifications tracked yet
               </h2>
               <p className="mb-4 text-sm text-[var(--text-secondary)]">
-                Certifications don&apos;t just prove skills — they prove commitment.
+                Certifications don&apos;t just prove skills, they prove commitment.
                 Track your first one.
               </p>
               <Button onClick={() => navigate("/certifications/new")}>
@@ -212,7 +163,7 @@ export default function CertificationsList() {
                   className="animate-fade-in-up group rounded-[var(--radius-lg)] border
                     border-[var(--border-subtle)] bg-[var(--bg-surface)]
                     p-4 transition-all duration-200 hover:-translate-y-0.5
-                    hover:shadow-lg hover:shadow-black/20
+                    hover:shadow-lg hover:shadow-stone-900/10
                     hover:border-[var(--border-default)]"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
@@ -227,8 +178,8 @@ export default function CertificationsList() {
                           isExpiringSoon(cert.expiry_date) && (
                             <span
                               className="inline-flex items-center rounded-full
-                                bg-amber-500/10 px-2 py-0.5 text-xs
-                                font-medium text-amber-500"
+                                bg-[var(--color-warning)]/10 px-2 py-0.5 text-xs
+                                font-medium text-[var(--color-warning)]"
                               title="Expiring within 90 days"
                             >
                               Expiring soon
@@ -297,7 +248,7 @@ export default function CertificationsList() {
                     <div
                       className="flex shrink-0 gap-1 opacity-0
                         transition-opacity group-hover:opacity-100
-                        group-focus-within:opacity-100"
+                        group-focus-within:opacity-100 touch:opacity-100"
                     >
                       <Button
                         variant="ghost"

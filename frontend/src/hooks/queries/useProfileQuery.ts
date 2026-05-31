@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth";
 import type { ProfileSettings } from "@/types";
 
 export const profileKeys = {
@@ -23,8 +24,11 @@ export function useUpdateProfileMutation() {
   return useMutation({
     mutationFn: (data: Partial<ProfileSettings>) =>
       apiClient.profile.updateSettings(data).then((res) => res.data.data),
-    onSuccess: () => {
+    onSuccess: (data: ProfileSettings) => {
       queryClient.invalidateQueries({ queryKey: profileKeys.settings() });
+      if (data.name) {
+        useAuthStore.getState().updateUser({ name: data.name });
+      }
       toast.success("Profile updated successfully");
     },
   });

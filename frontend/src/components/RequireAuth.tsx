@@ -8,6 +8,7 @@ export function RequireAuth() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
   const [bootstrapping, setBootstrapping] = useState(false);
 
@@ -16,8 +17,10 @@ export function RequireAuth() {
       setBootstrapping(true);
       apiClient.auth
         .refresh()
-        .then((res) => {
+        .then(async (res) => {
           useAuthStore.getState().setAccessToken(res.data.data.access_token);
+          const userRes = await apiClient.user.getCurrent();
+          useAuthStore.getState().updateUser(userRes.data.data);
         })
         .catch(() => {
           useAuthStore.getState().logout();
@@ -34,6 +37,10 @@ export function RequireAuth() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (user && !user.email_verified) {
+    return <Navigate to="/verify-email-required" replace />;
   }
 
   return <Outlet />;

@@ -13,6 +13,8 @@ const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   contract: "Contract",
   freelance: "Freelance",
   internship: "Internship",
+  education: "Education",
+  volunteer: "Volunteer",
 };
 
 const TRANSITION_TYPE_LABELS: Record<string, string> = {
@@ -27,12 +29,12 @@ function formatDateRange(startDate: string, endDate: string | null): string {
     month: "short",
     year: "numeric",
   });
-  if (!endDate) return `${start} — Present`;
+  if (!endDate) return `${start} to Present`;
   const end = new Date(endDate).toLocaleDateString("en-GB", {
     month: "short",
     year: "numeric",
   });
-  return `${start} — ${end}`;
+  return `${start} to ${end}`;
 }
 
 function calculateDuration(startDate: string, endDate: string | null): string {
@@ -149,7 +151,7 @@ export default function JobsList() {
                     className={[
                       "animate-fade-in-up group rounded-[var(--radius-lg)] border",
                       "bg-[var(--bg-surface)] p-4 transition-all duration-200",
-                      "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20",
+                      "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-stone-900/10",
                       "hover:border-[var(--border-default)]",
                       !job.end_date
                         ? "border-[var(--accent-default)]/30"
@@ -213,14 +215,17 @@ export default function JobsList() {
                             </span>
                           )}
 
-                          {/* Remote badge */}
-                          {job.remote && (
+                          {/* Work mode badge */}
+                          {job.work_mode && job.work_mode !== "onsite" && (
                             <span
-                              className="inline-flex items-center rounded-full
-                                bg-emerald-500/10 px-2 py-0.5 text-xs font-medium
-                                text-emerald-600 dark:text-emerald-400"
+                              className={[
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                job.work_mode === "remote"
+                                  ? "bg-[var(--color-success)]/10 text-[var(--color-success)]"
+                                  : "bg-[var(--color-info)]/10 text-[var(--color-info)]",
+                              ].join(" ")}
                             >
-                              Remote
+                              {job.work_mode === "remote" ? "Remote" : "Hybrid"}
                             </span>
                           )}
 
@@ -250,7 +255,7 @@ export default function JobsList() {
                       {/* Action buttons */}
                       <div
                         className="flex shrink-0 gap-1 opacity-0 transition-opacity
-                          group-hover:opacity-100 group-focus-within:opacity-100"
+                          group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100"
                       >
                         <Button
                           variant="ghost"

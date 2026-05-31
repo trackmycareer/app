@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
 import { SpinnerIcon, AlertTriangleIcon } from "@/components/icons";
@@ -7,19 +7,27 @@ import { Button } from "@/components/Button";
 
 export default function Callback() {
   const navigate = useNavigate();
+  const { provider } = useParams<{ provider: string }>();
   const [searchParams] = useSearchParams();
   const login = useAuthStore((s) => s.login);
   const [error, setError] = useState("");
+  const called = useRef(false);
 
   useEffect(() => {
+    if (called.current) return;
+    called.current = true;
+
+    const code = searchParams.get("code");
+    const state = searchParams.get("state");
     const oauthError = searchParams.get("error");
-    if (oauthError) {
+
+    if (oauthError || !code || !state || !provider) {
       setError("Authentication failed. Please try again.");
       return;
     }
 
     apiClient.auth
-      .refresh()
+      .oauthCallback(provider, { code, state })
       .then((tokenRes) => {
         const accessToken = tokenRes.data.data.access_token;
         useAuthStore.getState().setAccessToken(accessToken);
@@ -34,7 +42,7 @@ export default function Callback() {
         useAuthStore.getState().logout();
         setError("Failed to complete sign in. Please try again.");
       });
-  }, [searchParams, login, navigate]);
+  }, [searchParams, provider, login, navigate]);
 
   if (error) {
     return (

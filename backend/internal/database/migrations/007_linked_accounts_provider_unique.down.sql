@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_linked_accounts_unique_provider_id;

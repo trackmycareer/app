@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/user"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/internal/user"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 // Handler provides HTTP handlers for admin endpoints.
@@ -104,7 +104,7 @@ func (h *Handler) ToggleAdmin(c *gin.Context) {
 
 	var req toggleAdminRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 

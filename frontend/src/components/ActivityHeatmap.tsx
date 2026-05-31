@@ -9,10 +9,11 @@ interface ActivityHeatmapProps {
 const DAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
 
 function getIntensityClass(count: number): string {
-  if (count === 0) return "bg-[var(--bg-elevated)]";
-  if (count === 1) return "bg-[var(--accent-default)] opacity-25";
-  if (count <= 3) return "bg-[var(--accent-default)] opacity-50";
-  return "bg-[var(--accent-default)]";
+  if (count === 0) return "bg-[var(--heatmap-0)]";
+  if (count === 1) return "bg-[var(--heatmap-1)]";
+  if (count <= 3) return "bg-[var(--heatmap-2)]";
+  if (count <= 6) return "bg-[var(--heatmap-3)]";
+  return "bg-[var(--heatmap-4)]";
 }
 
 function formatDate(dateStr: string): string {
@@ -93,14 +94,14 @@ export function ActivityHeatmap({ data, days = 365 }: ActivityHeatmapProps) {
         </p>
       </div>
 
-      <div className="overflow-x-auto pb-2">
+      <div className="overflow-x-auto pb-2" onTouchStart={() => setTooltip(null)}>
         <div className="inline-flex flex-col gap-1" role="img" aria-label="Activity heatmap">
           {/* Month labels */}
-          <div className="flex gap-[3px] pl-8">
+          <div className="flex gap-[2px] pl-6 sm:gap-[3px] sm:pl-8">
             {weeks.map((_, weekIdx) => {
               const monthEntry = monthLabels.find((m) => m.col === weekIdx);
               return (
-                <div key={weekIdx} className="h-3 w-[13px] text-center">
+                <div key={weekIdx} className="h-3 w-[9px] text-center sm:w-[13px]">
                   {monthEntry && (
                     <span className="text-[10px] leading-3 text-[var(--text-tertiary)]">
                       {monthEntry.label}
@@ -113,8 +114,8 @@ export function ActivityHeatmap({ data, days = 365 }: ActivityHeatmapProps) {
 
           {/* Grid rows */}
           {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => (
-            <div key={dayIdx} className="flex items-center gap-[3px]">
-              <span className="w-7 text-right text-[10px] text-[var(--text-tertiary)]">
+            <div key={dayIdx} className="flex items-center gap-[2px] sm:gap-[3px]">
+              <span className="w-5 text-right text-[8px] text-[var(--text-tertiary)] sm:w-7 sm:text-[10px]">
                 {DAY_LABELS[dayIdx]}
               </span>
               {weeks.map((week, weekIdx) => {
@@ -123,14 +124,14 @@ export function ActivityHeatmap({ data, days = 365 }: ActivityHeatmapProps) {
                   return (
                     <div
                       key={weekIdx}
-                      className="h-[13px] w-[13px] rounded-sm"
+                      className="h-[9px] w-[9px] rounded-sm sm:h-[13px] sm:w-[13px]"
                     />
                   );
                 }
                 return (
                   <div
                     key={weekIdx}
-                    className={`h-[13px] w-[13px] rounded-sm ${getIntensityClass(cell.count)}`}
+                    className={`h-[9px] w-[9px] rounded-sm sm:h-[13px] sm:w-[13px] ${getIntensityClass(cell.count)}`}
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setTooltip({
@@ -140,6 +141,18 @@ export function ActivityHeatmap({ data, days = 365 }: ActivityHeatmapProps) {
                       });
                     }}
                     onMouseLeave={() => setTooltip(null)}
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip((prev) =>
+                        prev && prev.text.includes(cell.date)
+                          ? null
+                          : {
+                              text: `${cell.count} activit${cell.count === 1 ? "y" : "ies"} on ${formatDate(cell.date)}`,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top,
+                            }
+                      );
+                    }}
                     role="presentation"
                   />
                 );
@@ -164,10 +177,10 @@ export function ActivityHeatmap({ data, days = 365 }: ActivityHeatmapProps) {
       {/* Legend */}
       <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-[var(--text-tertiary)]">
         <span>Less</span>
-        <div className="h-[11px] w-[11px] rounded-sm bg-[var(--bg-elevated)]" />
-        <div className="h-[11px] w-[11px] rounded-sm bg-[var(--accent-default)] opacity-25" />
-        <div className="h-[11px] w-[11px] rounded-sm bg-[var(--accent-default)] opacity-50" />
-        <div className="h-[11px] w-[11px] rounded-sm bg-[var(--accent-default)]" />
+        <div className="h-[9px] w-[9px] sm:h-[11px] sm:w-[11px] rounded-sm bg-[var(--heatmap-0)]" />
+        <div className="h-[9px] w-[9px] sm:h-[11px] sm:w-[11px] rounded-sm bg-[var(--heatmap-1)]" />
+        <div className="h-[9px] w-[9px] sm:h-[11px] sm:w-[11px] rounded-sm bg-[var(--heatmap-2)]" />
+        <div className="h-[9px] w-[9px] sm:h-[11px] sm:w-[11px] rounded-sm bg-[var(--heatmap-4)]" />
         <span>More</span>
       </div>
     </div>

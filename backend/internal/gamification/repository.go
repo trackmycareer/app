@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -145,6 +146,36 @@ func (r *Repository) LogActivity(ctx context.Context, userID uuid.UUID, action s
 		return fmt.Errorf("logging activity: %w", err)
 	}
 	return nil
+}
+
+// HasRecentActivity checks whether the user has a matching activity_log entry
+// after the given timestamp. When entityID is nil the check ignores entity_id.
+func (r *Repository) HasRecentActivity(ctx context.Context, userID uuid.UUID, action string, entityID *uuid.UUID, since time.Time) (bool, error) {
+	var exists bool
+	var err error
+
+	if entityID != nil {
+		err = r.pool.QueryRow(ctx,
+			`SELECT EXISTS(
+				SELECT 1 FROM activity_log
+				WHERE user_id = $1 AND action = $2 AND entity_id = $3 AND created_at > $4
+			)`,
+			userID, action, *entityID, since,
+		).Scan(&exists)
+	} else {
+		err = r.pool.QueryRow(ctx,
+			`SELECT EXISTS(
+				SELECT 1 FROM activity_log
+				WHERE user_id = $1 AND action = $2 AND entity_id IS NULL AND created_at > $3
+			)`,
+			userID, action, since,
+		).Scan(&exists)
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("checking recent activity: %w", err)
+	}
+	return exists, nil
 }
 
 // GetHeatmap returns aggregated daily activity counts for the past N days.
@@ -353,9 +384,63 @@ func (r *Repository) GetEntityCount(ctx context.Context, userID uuid.UUID, entit
 	return count, nil
 }
 
+// ListAllUserIDs returns every user ID in the system.
+func (r *Repository) ListAllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id FROM users ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("listing user IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning user ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating user IDs: %w", err)
+	}
+	return ids, nil
+}
+
 // ---------------------------------------------------------------------------
 // Badge admin CRUD
 // ---------------------------------------------------------------------------
+
+// GetBadgeByName returns a single badge by its name.
+func (r *Repository) GetBadgeByName(ctx context.Context, name string) (Badge, error) {
+	var b Badge
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, description, icon, colour, tier, condition_type, condition_config, is_default, created_at
+		FROM badges WHERE name = $1`,
+		name,
+	).Scan(
+		&b.ID, &b.Name, &b.Description, &b.Icon, &b.Colour,
+		&b.Tier, &b.ConditionType, &b.ConditionConfig, &b.IsDefault, &b.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Badge{}, fmt.Errorf("badge not found: %s", name)
+		}
+		return Badge{}, fmt.Errorf("querying badge by name: %w", err)
+	}
+	return b, nil
+}
+
+// RevokeBadge removes a badge from a user.
+func (r *Repository) RevokeBadge(ctx context.Context, userID, badgeID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`DELETE FROM user_badges WHERE user_id = $1 AND badge_id = $2`,
+		userID, badgeID,
+	)
+	if err != nil {
+		return fmt.Errorf("revoking badge: %w", err)
+	}
+	return nil
+}
 
 // GetBadgeByID returns a single badge by its ID.
 func (r *Repository) GetBadgeByID(ctx context.Context, badgeID uuid.UUID) (Badge, error) {

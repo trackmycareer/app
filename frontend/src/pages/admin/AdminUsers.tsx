@@ -148,7 +148,78 @@ export default function AdminUsers() {
           )}
 
           {!isLoading && !isError && users.length > 0 && (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile card layout */}
+            <div className="space-y-3 sm:hidden">
+              {users.map((u) => {
+                const isSelf = currentUser?.id === u.id;
+                return (
+                  <div
+                    key={u.id}
+                    className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)]
+                      bg-[var(--bg-surface)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[var(--text-primary)]">{u.name}</p>
+                        <p className="truncate text-sm text-[var(--text-secondary)]">{u.email}</p>
+                      </div>
+                      {u.is_admin && (
+                        <span
+                          className="inline-flex shrink-0 items-center rounded-full
+                            bg-[var(--accent-default)]/10 px-2 py-0.5 text-xs
+                            font-medium text-[var(--accent-default)]"
+                        >
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--text-tertiary)]">
+                      <span
+                        className="inline-flex items-center rounded-full bg-[var(--bg-elevated)]
+                          px-2 py-0.5 font-medium text-[var(--text-secondary)]"
+                      >
+                        {u.provider}
+                      </span>
+                      <span>
+                        {new Date(u.created_at).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex gap-2 border-t border-[var(--border-subtle)] pt-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToggleTarget(u)}
+                        disabled={isSelf}
+                        aria-label={
+                          u.is_admin
+                            ? `Remove admin from ${u.name}`
+                            : `Make ${u.name} admin`
+                        }
+                      >
+                        {u.is_admin ? "Remove admin" : "Make admin"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(u)}
+                        disabled={isSelf}
+                        aria-label={`Delete ${u.name}`}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table layout */}
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr
@@ -237,6 +308,7 @@ export default function AdminUsers() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Pagination */}

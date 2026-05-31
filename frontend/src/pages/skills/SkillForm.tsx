@@ -5,6 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { Select } from "@/components/Select";
+import { SkillAutocomplete } from "@/components/SkillAutocomplete";
 import { SpinnerIcon, CloseIcon } from "@/components/icons";
 import {
   useSkillQuery,
@@ -16,6 +17,7 @@ import {
 import { useWinsQuery } from "@/hooks/queries/useWinsQuery";
 import { useCertsQuery } from "@/hooks/queries/useCertsQuery";
 import { useJobsQuery } from "@/hooks/queries/useJobsQuery";
+import { EvidenceTypeLabel } from "./components/EvidenceTypeLabel";
 import type { SkillEvidence } from "@/types";
 
 const PROFICIENCY_OPTIONS = [
@@ -24,22 +26,6 @@ const PROFICIENCY_OPTIONS = [
   { value: 3, label: "Advanced" },
   { value: 4, label: "Expert" },
 ];
-
-function EvidenceTypeLabel({ type }: { type: string }) {
-  const labels: Record<string, string> = {
-    win: "Win",
-    certification: "Certification",
-    job: "Job",
-  };
-  return (
-    <span
-      className="inline-flex items-center rounded-full bg-[var(--bg-elevated)] px-2 py-0.5
-        text-xs font-medium text-[var(--text-secondary)]"
-    >
-      {labels[type] ?? type}
-    </span>
-  );
-}
 
 export default function SkillForm() {
   const { id } = useParams();
@@ -91,6 +77,7 @@ export default function SkillForm() {
   const [proficiency, setProficiency] = useState(1);
   const [notes, setNotes] = useState("");
   const [nameError, setNameError] = useState("");
+  const [categoryManuallyEdited, setCategoryManuallyEdited] = useState(false);
   const [populated, setPopulated] = useState(false);
 
   // Evidence add form
@@ -104,6 +91,7 @@ export default function SkillForm() {
       setCategory(existingSkill.category ?? "");
       setProficiency(existingSkill.proficiency);
       setNotes(existingSkill.notes ?? "");
+      setCategoryManuallyEdited(false);
       setPopulated(true);
     }
   }, [isEditing, existingSkill, populated]);
@@ -237,13 +225,17 @@ export default function SkillForm() {
       <Topbar title={isEditing ? "Edit Skill" : "New Skill"} />
       <div className="mx-auto max-w-2xl p-4 lg:p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          <TextInput
+          <SkillAutocomplete
             label="Name"
             placeholder="e.g. TypeScript, System Design, AWS"
             value={name}
-            onChange={(e) => {
-              setName(e.target.value);
+            onChange={(value) => {
+              setName(value);
               if (nameError) setNameError("");
+              if (!value) setCategoryManuallyEdited(false);
+            }}
+            onCategorySuggested={(suggestedCategory) => {
+              if (!categoryManuallyEdited) setCategory(suggestedCategory);
             }}
             error={nameError}
             required
@@ -253,7 +245,10 @@ export default function SkillForm() {
             label="Category"
             placeholder="e.g. Programming Languages, Cloud, Soft Skills"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setCategoryManuallyEdited(true);
+            }}
           />
 
           {/* Proficiency segmented control */}

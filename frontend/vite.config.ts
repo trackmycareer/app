@@ -6,6 +6,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const apiUrl = env.VITE_API_URL || "http://localhost:8080";
+  const s3Url = env.VITE_S3_PUBLIC_URL || "http://localhost:3900";
 
   const isDev = mode === "development";
 
@@ -14,7 +15,7 @@ export default defineConfig(({ mode }) => {
     isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob: ${s3Url}`,
     isDev
       ? `connect-src 'self' ${apiUrl} ws://localhost:* http://localhost:*`
       : `connect-src 'self' ${apiUrl}`,

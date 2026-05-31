@@ -4,6 +4,9 @@ import { useParams, useNavigate } from "react-router";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
+import { CompanyAutocomplete } from "@/components/CompanyAutocomplete";
+import { JobTitleAutocomplete } from "@/components/JobTitleAutocomplete";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { Select } from "@/components/Select";
 import { SpinnerIcon } from "@/components/icons";
 import {
@@ -18,6 +21,8 @@ const EMPLOYMENT_TYPE_OPTIONS = [
   { value: "contract", label: "Contract" },
   { value: "freelance", label: "Freelance" },
   { value: "internship", label: "Internship" },
+  { value: "education", label: "Education" },
+  { value: "volunteer", label: "Volunteer" },
 ];
 
 const TRANSITION_TYPE_OPTIONS = [
@@ -49,7 +54,7 @@ export default function JobForm() {
   const [employmentType, setEmploymentType] = useState("full_time");
   const [transitionType, setTransitionType] = useState("");
   const [location, setLocation] = useState("");
-  const [remote, setRemote] = useState(false);
+  const [workMode, setWorkMode] = useState("onsite");
   const [responsibilities, setResponsibilities] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -74,7 +79,7 @@ export default function JobForm() {
       setEmploymentType(existingJob.employment_type);
       setTransitionType(existingJob.transition_type ?? "");
       setLocation(existingJob.location ?? "");
-      setRemote(existingJob.remote);
+      setWorkMode(existingJob.work_mode || "onsite");
       setResponsibilities(existingJob.responsibilities ?? "");
       setNotes(existingJob.notes ?? "");
       setPopulated(true);
@@ -120,16 +125,13 @@ export default function JobForm() {
         employment_type: employmentType,
         transition_type: transitionType || null,
         location: location.trim() || null,
-        remote,
+        work_mode: workMode,
         responsibilities: responsibilities.trim() || null,
         notes: notes.trim() || null,
       };
 
       if (isEditing && id) {
-        updateMutation.mutate(
-          { id, data: payload },
-          { onSuccess: () => navigate("/jobs") },
-        );
+        updateMutation.mutate({ id, data: payload }, { onSuccess: () => navigate("/jobs") });
       } else {
         createMutation.mutate(payload, {
           onSuccess: () => navigate("/jobs"),
@@ -145,7 +147,7 @@ export default function JobForm() {
       employmentType,
       transitionType,
       location,
-      remote,
+      workMode,
       responsibilities,
       notes,
       isEditing,
@@ -180,24 +182,24 @@ export default function JobForm() {
       <Topbar title={isEditing ? "Edit Role" : "New Role"} />
       <div className="mx-auto max-w-2xl p-4 lg:p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          <TextInput
+          <CompanyAutocomplete
             label="Company"
             placeholder="Company name"
             value={company}
-            onChange={(e) => {
-              setCompany(e.target.value);
+            onChange={(value) => {
+              setCompany(value);
               if (companyError) setCompanyError("");
             }}
             error={companyError}
             required
           />
 
-          <TextInput
+          <JobTitleAutocomplete
             label="Job title"
             placeholder="Your role or position"
             value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
+            onChange={(value) => {
+              setTitle(value);
               if (titleError) setTitleError("");
             }}
             error={titleError}
@@ -268,24 +270,21 @@ export default function JobForm() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <TextInput
+            <LocationAutocomplete
               label="Location"
               placeholder="e.g. London, UK"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(value) => setLocation(value)}
             />
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={remote}
-                  onChange={(e) => setRemote(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--border-default)]
-                    text-[var(--accent-default)] focus:ring-[var(--accent-default)]"
-                />
-                Remote position
-              </label>
-            </div>
+            <Select
+              label="Work mode"
+              value={workMode}
+              onChange={(e) => setWorkMode(e.target.value)}
+            >
+              <option value="onsite">Onsite</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="remote">Remote</option>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -311,10 +310,7 @@ export default function JobForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="job-notes"
-              className="text-sm font-medium text-[var(--text-secondary)]"
-            >
+            <label htmlFor="job-notes" className="text-sm font-medium text-[var(--text-secondary)]">
               Notes
             </label>
             <textarea

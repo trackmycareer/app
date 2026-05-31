@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/auth"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/internal/auth"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 func AuthRequired(jwtManager *auth.JWTManager) gin.HandlerFunc {
@@ -35,6 +35,7 @@ func AuthRequired(jwtManager *auth.JWTManager) gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("is_admin", claims.IsAdmin)
+		c.Set("email_verified", claims.EmailVerified)
 		c.Next()
 	}
 }

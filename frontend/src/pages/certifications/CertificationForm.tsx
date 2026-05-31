@@ -4,6 +4,9 @@ import { useParams, useNavigate } from "react-router";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
+import { CompanyAutocomplete } from "@/components/CompanyAutocomplete";
+import { CertificationAutocomplete } from "@/components/CertificationAutocomplete";
+import { CurrencyAutocomplete } from "@/components/CurrencyAutocomplete";
 import { Select } from "@/components/Select";
 import { SpinnerIcon } from "@/components/icons";
 import {
@@ -43,6 +46,7 @@ export default function CertificationForm() {
   const [studyProgress, setStudyProgress] = useState(0);
   const [nameError, setNameError] = useState("");
   const [providerError, setProviderError] = useState("");
+  const [providerManuallyEdited, setProviderManuallyEdited] = useState(false);
   const [populated, setPopulated] = useState(false);
 
   // Populate form when editing
@@ -62,6 +66,7 @@ export default function CertificationForm() {
       setCredentialUrl(existingCert.credential_url ?? "");
       setStudyNotes(existingCert.study_notes ?? "");
       setStudyProgress(existingCert.study_progress);
+      setProviderManuallyEdited(false);
       setPopulated(true);
     }
   }, [isEditing, existingCert, populated]);
@@ -163,24 +168,29 @@ export default function CertificationForm() {
       />
       <div className="mx-auto max-w-2xl p-4 lg:p-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          <TextInput
-            label="Name"
-            placeholder="e.g. AWS Solutions Architect"
+          <CertificationAutocomplete
+            label="Certification name"
+            placeholder="e.g. AWS Solutions Architect Associate"
             value={name}
-            onChange={(e) => {
-              setName(e.target.value);
+            onChange={(value) => {
+              setName(value);
               if (nameError) setNameError("");
+              if (!value) setProviderManuallyEdited(false);
+            }}
+            onProviderSuggested={(provider) => {
+              if (!providerManuallyEdited) setProvider(provider);
             }}
             error={nameError}
             required
           />
 
-          <TextInput
+          <CompanyAutocomplete
             label="Provider"
             placeholder="e.g. Amazon Web Services"
             value={provider}
-            onChange={(e) => {
-              setProvider(e.target.value);
+            onChange={(value) => {
+              setProvider(value);
+              setProviderManuallyEdited(true);
               if (providerError) setProviderError("");
             }}
             error={providerError}
@@ -224,12 +234,11 @@ export default function CertificationForm() {
               value={cost}
               onChange={(e) => setCost(e.target.value)}
             />
-            <TextInput
+            <CurrencyAutocomplete
               label="Currency"
               placeholder="GBP"
               value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              maxLength={3}
+              onChange={(value) => setCurrency(value)}
             />
           </div>
 

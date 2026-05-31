@@ -3,9 +3,11 @@ package gamification
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 // Service orchestrates gamification logic: points, streaks, badges, and activity logging.
@@ -28,28 +30,37 @@ func (s *Service) RecordActivity(ctx context.Context, userID uuid.UUID, action s
 		return nil, fmt.Errorf("logging activity: %w", err)
 	}
 
-	// 2. Award points for the action.
+	// 2. Award points for the action, subject to a 24-hour cooldown per
+	//    (user, action, entity) triple to prevent point farming.
 	points := ActionPoints[action]
 	if points > 0 {
-		prevPoints, err := s.repo.GetOrCreatePoints(ctx, userID)
+		cooldownWindow := time.Now().UTC().Add(-24 * time.Hour)
+		recentlyAwarded, err := s.repo.HasRecentActivity(ctx, userID, action, entityID, cooldownWindow)
 		if err != nil {
-			return nil, fmt.Errorf("fetching points before add: %w", err)
-		}
-		prevLevel := prevPoints.Level
-
-		userPoints, err := s.repo.AddPoints(ctx, userID, points)
-		if err != nil {
-			return nil, fmt.Errorf("adding points: %w", err)
+			return nil, fmt.Errorf("checking recent activity: %w", err)
 		}
 
-		// Check for level-up.
-		newLevel, title := LevelForPoints(userPoints.TotalPoints)
-		if newLevel > prevLevel {
-			awards = append(awards, Award{
-				Type:       "level_up",
-				Level:      newLevel,
-				LevelTitle: title,
-			})
+		if !recentlyAwarded {
+			prevPoints, err := s.repo.GetOrCreatePoints(ctx, userID)
+			if err != nil {
+				return nil, fmt.Errorf("fetching points before add: %w", err)
+			}
+			prevLevel := prevPoints.Level
+
+			userPoints, err := s.repo.AddPoints(ctx, userID, points)
+			if err != nil {
+				return nil, fmt.Errorf("adding points: %w", err)
+			}
+
+			// Check for level-up.
+			newLevel, title := LevelForPoints(userPoints.TotalPoints)
+			if newLevel > prevLevel {
+				awards = append(awards, Award{
+					Type:       "level_up",
+					Level:      newLevel,
+					LevelTitle: title,
+				})
+			}
 		}
 	}
 
@@ -77,6 +88,35 @@ func (s *Service) RecordActivity(ctx context.Context, userID uuid.UUID, action s
 	}
 
 	return awards, nil
+}
+
+// RecalculationResult summarises the outcome of a bulk badge recalculation.
+type RecalculationResult struct {
+	UsersProcessed int `json:"users_processed"`
+	BadgesAwarded  int `json:"badges_awarded"`
+}
+
+// RecalculateAllBadges re-evaluates badge conditions for every user and awards
+// any badges whose conditions are now satisfied. Safe to call repeatedly because
+// badge awards are idempotent.
+func (s *Service) RecalculateAllBadges(ctx context.Context) (*RecalculationResult, error) {
+	userIDs, err := s.repo.ListAllUserIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing users for recalculation: %w", err)
+	}
+
+	result := &RecalculationResult{UsersProcessed: len(userIDs)}
+	for _, uid := range userIDs {
+		awards, err := s.recalculateBadgesForUser(ctx, uid)
+		if err != nil {
+			slog.Warn("badge recalculation failed for user", "error", err.Error(), "user_id", uid.String())
+			continue
+		}
+		result.BadgesAwarded += len(awards)
+	}
+
+	slog.Info("badge recalculation complete", "users_processed", result.UsersProcessed, "badges_awarded", result.BadgesAwarded)
+	return result, nil
 }
 
 // GetProgress returns the aggregated gamification overview for a user.
@@ -136,20 +176,18 @@ func (s *Service) updateStreak(ctx context.Context, userID uuid.UUID) error {
 		return err
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
+	now := time.Now().UTC()
+	today := types.NewDate(now.Truncate(24 * time.Hour))
 
-	// If already active today, nothing to do.
-	if streak.LastActiveOn != nil && *streak.LastActiveOn == today {
+	if streak.LastActiveOn != nil && streak.LastActiveOn.Time.Equal(today.Time) {
 		return nil
 	}
 
-	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := types.NewDate(now.AddDate(0, 0, -1).Truncate(24 * time.Hour))
 
-	if streak.LastActiveOn != nil && *streak.LastActiveOn == yesterday {
-		// Consecutive day: increment streak.
+	if streak.LastActiveOn != nil && streak.LastActiveOn.Time.Equal(yesterday.Time) {
 		streak.CurrentStreak++
 	} else {
-		// Gap or first activity: reset to 1.
 		streak.CurrentStreak = 1
 	}
 

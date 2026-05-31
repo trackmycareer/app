@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/gamification"
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
+	"github.com/trackmycareer/app/internal/gamification"
+	"github.com/trackmycareer/app/pkg/response"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 type Handler struct {
@@ -56,24 +56,31 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 type createCertificationRequest struct {
-	Name          string      `json:"name" binding:"required"`
-	Provider      string      `json:"provider" binding:"required"`
-	Status        string      `json:"status"`
+	Name          string      `json:"name" binding:"required,max=255"`
+	Provider      string      `json:"provider" binding:"required,max=255"`
+	Status        string      `json:"status" binding:"max=100"`
 	EarnedDate    *types.Date `json:"earned_date"`
 	ExpiryDate    *types.Date `json:"expiry_date"`
 	Cost          *float64    `json:"cost"`
-	Currency      string      `json:"currency"`
+	Currency      string      `json:"currency" binding:"max=10"`
 	CredentialURL *string     `json:"credential_url"`
 	StudyNotes    *string     `json:"study_notes"`
 	StudyProgress int         `json:"study_progress"`
 }
+
+const (
+	maxCertNameLen          = 255
+	maxCertProviderLen      = 255
+	maxCertCredentialURLLen = 2048
+	maxCertStudyNotesLen    = 10000
+)
 
 func (h *Handler) Create(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
 	var req createCertificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -86,6 +93,15 @@ func (h *Handler) Create(c *gin.Context) {
 	req.Provider = strings.TrimSpace(req.Provider)
 	if req.Provider == "" {
 		response.BadRequest(c, "provider is required")
+		return
+	}
+
+	if req.CredentialURL != nil && len(*req.CredentialURL) > maxCertCredentialURLLen {
+		response.BadRequest(c, "credential URL must be at most 2048 characters")
+		return
+	}
+	if req.StudyNotes != nil && len(*req.StudyNotes) > maxCertStudyNotesLen {
+		response.BadRequest(c, "study notes must be at most 10000 characters")
 		return
 	}
 
@@ -174,7 +190,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var req updateCertificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -184,12 +200,20 @@ func (h *Handler) Update(c *gin.Context) {
 			response.BadRequest(c, "name cannot be empty")
 			return
 		}
+		if len(name) > maxCertNameLen {
+			response.BadRequest(c, "name must be at most 255 characters")
+			return
+		}
 		existing.Name = name
 	}
 	if req.Provider != nil {
 		provider := strings.TrimSpace(*req.Provider)
 		if provider == "" {
 			response.BadRequest(c, "provider cannot be empty")
+			return
+		}
+		if len(provider) > maxCertProviderLen {
+			response.BadRequest(c, "provider must be at most 255 characters")
 			return
 		}
 		existing.Provider = provider
@@ -210,9 +234,17 @@ func (h *Handler) Update(c *gin.Context) {
 		existing.Currency = *req.Currency
 	}
 	if req.CredentialURL != nil {
+		if len(*req.CredentialURL) > maxCertCredentialURLLen {
+			response.BadRequest(c, "credential URL must be at most 2048 characters")
+			return
+		}
 		existing.CredentialURL = req.CredentialURL
 	}
 	if req.StudyNotes != nil {
+		if len(*req.StudyNotes) > maxCertStudyNotesLen {
+			response.BadRequest(c, "study notes must be at most 10000 characters")
+			return
+		}
 		existing.StudyNotes = req.StudyNotes
 	}
 	if req.StudyProgress != nil {
@@ -253,7 +285,7 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 
 	var req updateStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 

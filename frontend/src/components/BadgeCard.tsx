@@ -7,7 +7,7 @@ interface BadgeCardProps {
 const TIER_COLOURS: Record<string, string> = {
   gold: "var(--color-warning)",
   silver: "var(--border-strong)",
-  bronze: "#cd7f32",
+  bronze: "var(--accent-warm)",
 };
 
 export function BadgeCard({ badge }: BadgeCardProps) {
@@ -16,11 +16,11 @@ export function BadgeCard({ badge }: BadgeCardProps) {
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-[var(--radius-xl)] border p-4",
+        "relative flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border p-4",
         "bg-[var(--bg-surface)] transition-colors",
         badge.earned
-          ? "border-[var(--border-default)]"
-          : "border-[var(--border-subtle)] opacity-50 grayscale",
+          ? "border-[var(--accent-default)]"
+          : "border-[var(--border-subtle)] opacity-60 sepia",
       ].join(" ")}
     >
       {/* Tier indicator */}
@@ -46,7 +46,7 @@ export function BadgeCard({ badge }: BadgeCardProps) {
           {badge.description}
         </p>
       )}
-      <div className="mt-2">
+      <div className="mt-auto pt-2">
         {badge.earned && badge.awarded_at ? (
           <p className="text-xs text-[var(--color-success)]">
             Earned on{" "}

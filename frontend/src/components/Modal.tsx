@@ -97,8 +97,9 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
           </h2>
           <button
             onClick={onClose}
-            className="rounded-[var(--radius-sm)] p-1 text-[var(--text-tertiary)]
-              transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="flex items-center justify-center rounded-[var(--radius-sm)] p-2 min-h-11 min-w-11
+              text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-hover)]
+              hover:text-[var(--text-primary)]"
             aria-label="Close"
           >
             <CloseIcon width={18} height={18} />

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 // Badge represents a badge definition, optionally enriched with per-user earned status.
@@ -34,12 +36,12 @@ type UserBadge struct {
 
 // UserStreak tracks daily activity streaks for a user.
 type UserStreak struct {
-	UserID        uuid.UUID `json:"user_id"`
-	CurrentStreak int       `json:"current_streak"`
-	LongestStreak int       `json:"longest_streak"`
-	LastActiveOn  *string   `json:"last_active_on,omitempty"`
-	FreezeUsedAt  *string   `json:"freeze_used_at,omitempty"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	UserID        uuid.UUID   `json:"user_id"`
+	CurrentStreak int         `json:"current_streak"`
+	LongestStreak int         `json:"longest_streak"`
+	LastActiveOn  *types.Date `json:"last_active_on,omitempty"`
+	FreezeUsedAt  *types.Date `json:"freeze_used_at,omitempty"`
+	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
 // ActivityLog records a single user action for heatmap and streak calculation.
@@ -61,8 +63,8 @@ type UserPoints struct {
 
 // HeatmapEntry represents activity count for a single day.
 type HeatmapEntry struct {
-	Date  string `json:"date"`
-	Count int    `json:"count"`
+	Date  types.Date `json:"date"`
+	Count int        `json:"count"`
 }
 
 // Progress is the aggregated gamification overview for a user.

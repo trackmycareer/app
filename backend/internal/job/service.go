@@ -9,10 +9,15 @@ import (
 
 var validEmploymentTypes = []string{
 	"full_time", "part_time", "contract", "freelance", "internship",
+	"education", "volunteer",
 }
 
 var validTransitionTypes = []string{
 	"promotion", "lateral_move", "company_change", "first_role",
+}
+
+var validWorkModes = []string{
+	"onsite", "hybrid", "remote",
 }
 
 type Service struct {
@@ -41,6 +46,12 @@ func (s *Service) Create(ctx context.Context, j *Job) error {
 	if j.TransitionType != nil && !isValidTransitionType(*j.TransitionType) {
 		return fmt.Errorf("invalid transition_type: %s", *j.TransitionType)
 	}
+	if j.WorkMode == "" {
+		j.WorkMode = "onsite"
+	}
+	if !isValidWorkMode(j.WorkMode) {
+		return fmt.Errorf("invalid work_mode: %s", j.WorkMode)
+	}
 	j.ID = uuid.New()
 	return s.repo.Create(ctx, j)
 }
@@ -51,6 +62,9 @@ func (s *Service) Update(ctx context.Context, j *Job) error {
 	}
 	if j.TransitionType != nil && !isValidTransitionType(*j.TransitionType) {
 		return fmt.Errorf("invalid transition_type: %s", *j.TransitionType)
+	}
+	if j.WorkMode != "" && !isValidWorkMode(j.WorkMode) {
+		return fmt.Errorf("invalid work_mode: %s", j.WorkMode)
 	}
 	return s.repo.Update(ctx, j)
 }
@@ -70,6 +84,15 @@ func isValidEmploymentType(t string) bool {
 
 func isValidTransitionType(t string) bool {
 	for _, v := range validTransitionTypes {
+		if v == t {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidWorkMode(t string) bool {
+	for _, v := range validWorkModes {
 		if v == t {
 			return true
 		}

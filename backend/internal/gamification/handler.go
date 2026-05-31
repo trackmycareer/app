@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/bhcloudlabs/trackmy-career/pkg/response"
+	"github.com/trackmycareer/app/pkg/response"
 )
 
 // Handler exposes gamification HTTP endpoints.
@@ -84,6 +84,18 @@ func (h *Handler) GetStreak(c *gin.Context) {
 	response.OK(c, streak)
 }
 
+// AdminRecalculateBadges re-evaluates badge conditions for all users and awards
+// any badges whose conditions are now satisfied.
+func (h *Handler) AdminRecalculateBadges(c *gin.Context) {
+	result, err := h.svc.RecalculateAllBadges(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
+	response.OK(c, result)
+}
+
 // ---------------------------------------------------------------------------
 // Admin badge management
 // ---------------------------------------------------------------------------
@@ -128,7 +140,7 @@ func (h *Handler) AdminListBadges(c *gin.Context) {
 func (h *Handler) AdminCreateBadge(c *gin.Context) {
 	var req adminBadgeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 
@@ -180,7 +192,7 @@ func (h *Handler) AdminUpdateBadge(c *gin.Context) {
 
 	var req adminBadgeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request: "+err.Error())
+		response.BadRequest(c, response.FormatBindingError(err))
 		return
 	}
 

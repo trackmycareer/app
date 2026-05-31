@@ -1,0 +1,6 @@
+ALTER TABLE users ADD COLUMN location VARCHAR(255);
+ALTER TABLE users ADD COLUMN headline VARCHAR(255);
+ALTER TABLE users ADD COLUMN open_to_work VARCHAR(20) NOT NULL DEFAULT 'not_looking';
+ALTER TABLE users ADD COLUMN linkedin_url TEXT;
+ALTER TABLE users ADD COLUMN github_url TEXT;
+ALTER TABLE users ADD COLUMN website_url TEXT;

@@ -3,9 +3,9 @@ package win
 import (
 	"time"
 
-	"github.com/bhcloudlabs/trackmy-career/internal/tag"
-	"github.com/bhcloudlabs/trackmy-career/pkg/types"
 	"github.com/google/uuid"
+	"github.com/trackmycareer/app/internal/tag"
+	"github.com/trackmycareer/app/pkg/types"
 )
 
 type Win struct {
