@@ -66,7 +66,7 @@ type hostnameStatusResult struct {
 
 // createHostnameRequest is the POST body for creating a custom hostname.
 type createHostnameRequest struct {
-	Hostname string                `json:"hostname"`
+	Hostname string               `json:"hostname"`
 	SSL      createHostnameSSLOpt `json:"ssl"`
 }
 

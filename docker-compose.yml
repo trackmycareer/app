@@ -77,6 +77,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-?Set MFA_ENCRYPTION_KEY in .env}
+      CF_ZONE_ID: ${CF_ZONE_ID:-}
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      CF_CUSTOM_DOMAIN_FALLBACK: ${CF_CUSTOM_DOMAIN_FALLBACK:-}
     depends_on:
       postgres:
         condition: service_healthy
