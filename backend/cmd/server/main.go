@@ -252,7 +252,10 @@ func main() {
 		}
 		c.Next()
 	})
-	router.Use(middleware.CORS(cfg.AllowedOrigins))
+	router.Use(middleware.CORS(cfg.AllowedOrigins, func(hostname string) bool {
+		d, err := customDomainRepo.GetByDomain(context.Background(), hostname)
+		return err == nil && d != nil && d.Status == "active"
+	}))
 	router.Use(middleware.SecurityHeaders())
 
 	// Health check
