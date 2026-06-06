@@ -27,6 +27,7 @@ import type {
   LocationResult,
   MFAStatus,
   PasskeyInfo,
+  CustomDomain,
 } from "@/types";
 
 const api = axios.create({
@@ -92,9 +93,12 @@ api.interceptors.response.use(
           } catch {
             // Clear local state directly to avoid a recursive loop.
             // The server-side token is already invalid, so no need to call /auth/logout.
-            useAuthStore.setState(
-              { user: null, accessToken: null, isAuthenticated: false, isLoading: false },
-            );
+            useAuthStore.setState({
+              user: null,
+              accessToken: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
             toast.error("Session expired. Please sign in again.");
           }
         }
@@ -103,13 +107,10 @@ api.interceptors.response.use(
         if (code === "EMAIL_NOT_VERIFIED") {
           return Promise.reject(error);
         }
-        const mfaSetupRequired = (
-          error.response?.data as { mfa_setup_required?: boolean }
-        )?.mfa_setup_required;
+        const mfaSetupRequired = (error.response?.data as { mfa_setup_required?: boolean })
+          ?.mfa_setup_required;
         if (mfaSetupRequired) {
-          toast.error(
-            "Please set up multi-factor authentication to access admin features.",
-          );
+          toast.error("Please set up multi-factor authentication to access admin features.");
           window.location.href = "/security";
           return Promise.reject(error);
         }
@@ -185,18 +186,15 @@ export const apiClient = {
   },
   mfa: {
     getStatus: () => api.get<{ data: MFAStatus }>("/user/me/mfa/status"),
-    setupTOTP: () =>
-      api.post<{ data: { uri: string; secret: string } }>("/user/me/mfa/totp/setup"),
+    setupTOTP: () => api.post<{ data: { uri: string; secret: string } }>("/user/me/mfa/totp/setup"),
     verifyTOTP: (code: string) =>
       api.post<{ data: { backup_codes?: string[] } }>("/user/me/mfa/totp/verify", { code }),
-    deleteTOTP: (password: string) =>
-      api.delete("/user/me/mfa/totp", { data: { password } }),
+    deleteTOTP: (password: string) => api.delete("/user/me/mfa/totp", { data: { password } }),
     beginPasskeyRegistration: () => api.post("/user/me/mfa/passkeys/register/begin"),
     completePasskeyRegistration: (name: string, credential: unknown) =>
       api.post("/user/me/mfa/passkeys/register/complete", { name, credential }),
     listPasskeys: () => api.get<{ data: PasskeyInfo[] }>("/user/me/mfa/passkeys"),
-    renamePasskey: (id: string, name: string) =>
-      api.put(`/user/me/mfa/passkeys/${id}`, { name }),
+    renamePasskey: (id: string, name: string) => api.put(`/user/me/mfa/passkeys/${id}`, { name }),
     deletePasskey: (id: string, password: string) =>
       api.delete(`/user/me/mfa/passkeys/${id}`, { data: { password } }),
     backupCodeCount: () =>
@@ -296,6 +294,16 @@ export const apiClient = {
     updateSettings: (data: Partial<ProfileSettings>) =>
       api.put<{ data: ProfileSettings }>("/user/me/profile", data),
     getPublic: (username: string) => api.get<{ data: PublicProfile }>(`/profiles/${username}`),
+    getByDomain: (domain: string) =>
+      api.get<{ data: PublicProfile }>(`/profiles/by-domain/${domain}`),
+  },
+  customDomain: {
+    get: () => api.get<{ data: CustomDomain }>("/custom-domain"),
+    create: (domain: string) => api.post<{ data: CustomDomain }>("/custom-domain", { domain }),
+    verify: () => api.post<{ data: CustomDomain }>("/custom-domain/verify"),
+    remove: () => api.delete("/custom-domain"),
+    updateTheme: (accent_colour: string) =>
+      api.put<{ data: CustomDomain }>("/custom-domain/theme", { accent_colour }),
   },
   linkedAccounts: {
     list: () => api.get<{ data: LinkedAccount[] }>("/linked-accounts"),
@@ -305,8 +313,7 @@ export const apiClient = {
       api.post<{ data: LinkedAccount }>(`/linked-accounts/link/${provider}/callback`, data),
     addWebsite: (data: { url: string }) =>
       api.post<{ data: LinkedAccount }>("/linked-accounts/website", data),
-    verifyWebsite: () =>
-      api.post<{ data: LinkedAccount }>("/linked-accounts/website/verify"),
+    verifyWebsite: () => api.post<{ data: LinkedAccount }>("/linked-accounts/website/verify"),
     unlink: (provider: string) => api.delete(`/linked-accounts/${provider}`),
   },
   import: {

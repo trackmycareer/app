@@ -2,6 +2,7 @@ package user
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,13 +17,20 @@ import (
 	"github.com/trackmycareer/app/pkg/response"
 )
 
-type Handler struct {
-	repo    *Repository
-	storage *storage.Client
+// DomainCleaner is an optional interface for cleaning up custom domain
+// resources when a user account is deleted.
+type DomainCleaner interface {
+	Delete(ctx context.Context, userID uuid.UUID) error
 }
 
-func NewHandler(repo *Repository, storage *storage.Client) *Handler {
-	return &Handler{repo: repo, storage: storage}
+type Handler struct {
+	repo          *Repository
+	storage       *storage.Client
+	domainCleaner DomainCleaner
+}
+
+func NewHandler(repo *Repository, storage *storage.Client, domainCleaner DomainCleaner) *Handler {
+	return &Handler{repo: repo, storage: storage, domainCleaner: domainCleaner}
 }
 
 func (h *Handler) GetMe(c *gin.Context) {
@@ -268,6 +276,14 @@ func (h *Handler) DeleteAccount(c *gin.Context) {
 		if req.Confirmation != "DELETE" {
 			response.BadRequest(c, "please type DELETE to confirm account deletion")
 			return
+		}
+	}
+
+	// Best-effort custom domain cleanup (Cloudflare hostname removal).
+	if h.domainCleaner != nil {
+		if cdErr := h.domainCleaner.Delete(c.Request.Context(), userID); cdErr != nil {
+			slog.Warn("failed to clean up custom domain during account deletion",
+				"error", cdErr.Error(), "user_id", userID.String())
 		}
 	}
 

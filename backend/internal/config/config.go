@@ -69,6 +69,11 @@ type Config struct {
 	PolarProductIDOneTime      string `env:"POLAR_PRODUCT_ID_ONE_TIME"`
 	PolarProductIDSubscription string `env:"POLAR_PRODUCT_ID_SUBSCRIPTION"`
 	PolarSandbox               bool   `env:"POLAR_SANDBOX" envDefault:"false"`
+
+	// Cloudflare for SaaS (custom domains, optional — leave blank to disable)
+	CloudflareAPIToken       string `env:"CF_API_TOKEN"`
+	CloudflareZoneID         string `env:"CF_ZONE_ID"`
+	CloudflareCustomFallback string `env:"CF_CUSTOM_DOMAIN_FALLBACK"`
 }
 
 func (c Config) MFAKeyBytes() ([]byte, error) {
@@ -87,6 +92,10 @@ func (c Config) MFAKeyBytes() ([]byte, error) {
 
 func (c Config) PolarEnabled() bool {
 	return c.PolarAccessToken != ""
+}
+
+func (c Config) CloudflareEnabled() bool {
+	return c.CloudflareAPIToken != "" && c.CloudflareZoneID != ""
 }
 
 // TrustedProxyList returns the parsed list of trusted proxy addresses.

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trackmycareer/app/internal/certification"
+	"github.com/trackmycareer/app/internal/customdomain"
 	"github.com/trackmycareer/app/internal/gamification"
 	"github.com/trackmycareer/app/internal/job"
 	"github.com/trackmycareer/app/internal/linkedaccount"
@@ -29,6 +30,7 @@ type Handler struct {
 	certRepo             *certification.Repository
 	skillRepo            *skill.Repository
 	linkedAccountService *linkedaccount.Service
+	customDomainRepo     *customdomain.Repository
 }
 
 // NewHandler creates a new profile handler.
@@ -40,6 +42,7 @@ func NewHandler(
 	certRepo *certification.Repository,
 	skillRepo *skill.Repository,
 	linkedAccountService *linkedaccount.Service,
+	customDomainRepo *customdomain.Repository,
 ) *Handler {
 	return &Handler{
 		userRepo:             userRepo,
@@ -49,6 +52,7 @@ func NewHandler(
 		certRepo:             certRepo,
 		skillRepo:            skillRepo,
 		linkedAccountService: linkedAccountService,
+		customDomainRepo:     customDomainRepo,
 	}
 }
 
@@ -108,6 +112,8 @@ type publicProfileResponse struct {
 	Certifications []certification.Certification       `json:"certifications,omitempty"`
 	Skills         []skill.Skill                       `json:"skills,omitempty"`
 	Wins           []win.Win                           `json:"wins,omitempty"`
+	IsCustomDomain bool                                `json:"is_custom_domain,omitempty"`
+	AccentColour   string                              `json:"accent_colour,omitempty"`
 }
 
 // GetProfileSettings returns the profile settings for the authenticated user.
@@ -284,13 +290,68 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
-	u, err := h.userRepo.GetByUsername(ctx, username)
+	u, err := h.userRepo.GetByUsername(c.Request.Context(), username)
 	if err != nil {
 		response.NotFound(c, "profile not found")
 		return
 	}
+
+	resp, buildErr := h.buildPublicProfile(c, u)
+	if buildErr != nil {
+		return // buildPublicProfile already wrote the HTTP response
+	}
+
+	response.OK(c, resp)
+}
+
+// GetPublicProfileByDomain returns the public profile for a custom domain.
+func (h *Handler) GetPublicProfileByDomain(c *gin.Context) {
+	domain := c.Param("domain")
+	if domain == "" {
+		response.BadRequest(c, "domain is required")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	cd, err := h.customDomainRepo.GetByDomain(ctx, strings.ToLower(strings.TrimSpace(domain)))
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+	if cd == nil || cd.Status != "active" {
+		response.NotFound(c, "profile not found")
+		return
+	}
+
+	u, err := h.userRepo.GetByID(ctx, cd.UserID)
+	if err != nil {
+		response.NotFound(c, "profile not found")
+		return
+	}
+
+	// Verify the user is still a supporter.
+	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+		response.NotFound(c, "profile not found")
+		return
+	}
+
+	resp, buildErr := h.buildPublicProfile(c, u)
+	if buildErr != nil {
+		return // buildPublicProfile already wrote the HTTP response
+	}
+
+	resp.IsCustomDomain = true
+	resp.AccentColour = cd.AccentColour
+
+	response.OK(c, resp)
+}
+
+// buildPublicProfile constructs the public profile response for the given user.
+// If an error occurs, it writes the HTTP response directly and returns a non-nil error
+// to signal the caller should not write further.
+func (h *Handler) buildPublicProfile(c *gin.Context, u user.User) (*publicProfileResponse, error) {
+	ctx := c.Request.Context()
 
 	// Determine visibility.
 	vis := parseVisibility(u.ProfileVisibility)
@@ -299,7 +360,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 	points, err := h.gamificationRepo.GetOrCreatePoints(ctx, u.ID)
 	if err != nil {
 		response.InternalError(c, err)
-		return
+		return nil, err
 	}
 	level, levelTitle := gamification.LevelForPoints(points.TotalPoints)
 
@@ -307,7 +368,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 	allBadges, err := h.gamificationRepo.ListBadgesWithEarnedStatus(ctx, u.ID)
 	if err != nil {
 		response.InternalError(c, err)
-		return
+		return nil, err
 	}
 	var earnedBadges []gamification.Badge
 	for _, b := range allBadges {
@@ -322,10 +383,10 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 	linkedAccounts, err := h.linkedAccountService.ListPublicByUser(ctx, u.ID)
 	if err != nil {
 		response.InternalError(c, err)
-		return
+		return nil, err
 	}
 
-	resp := publicProfileResponse{
+	resp := &publicProfileResponse{
 		Name:           u.Name,
 		Bio:            u.Bio,
 		AvatarURL:      u.AvatarURL,
@@ -345,7 +406,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		jobs, jobErr := h.jobRepo.List(ctx, u.ID)
 		if jobErr != nil {
 			response.InternalError(c, jobErr)
-			return
+			return nil, jobErr
 		}
 		if jobs == nil {
 			jobs = []job.Job{}
@@ -360,7 +421,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		})
 		if certErr != nil {
 			response.InternalError(c, certErr)
-			return
+			return nil, certErr
 		}
 		if certs == nil {
 			certs = []certification.Certification{}
@@ -372,7 +433,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		skills, _, skillErr := h.skillRepo.List(ctx, u.ID, skill.ListParams{Limit: 100})
 		if skillErr != nil {
 			response.InternalError(c, skillErr)
-			return
+			return nil, skillErr
 		}
 		if skills == nil {
 			skills = []skill.Skill{}
@@ -384,7 +445,7 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		wins, _, winErr := h.winRepo.List(ctx, u.ID, win.ListParams{Limit: 100})
 		if winErr != nil {
 			response.InternalError(c, winErr)
-			return
+			return nil, winErr
 		}
 		if wins == nil {
 			wins = []win.Win{}
@@ -392,5 +453,5 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 		resp.Wins = wins
 	}
 
-	response.OK(c, resp)
+	return resp, nil
 }
