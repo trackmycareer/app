@@ -39,7 +39,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+	if !u.IsOneTimeSupporter && !u.IsSubscriber && !u.IsAdmin {
 		response.Forbidden(c, "custom domains are available to supporters")
 		return
 	}
@@ -90,7 +90,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+	if !u.IsOneTimeSupporter && !u.IsSubscriber && !u.IsAdmin {
 		response.Forbidden(c, "custom domains are available to supporters")
 		return
 	}
@@ -113,7 +113,7 @@ func (h *Handler) Verify(c *gin.Context) {
 		return
 	}
 
-	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+	if !u.IsOneTimeSupporter && !u.IsSubscriber && !u.IsAdmin {
 		response.Forbidden(c, "custom domains are available to supporters")
 		return
 	}
@@ -141,7 +141,7 @@ func (h *Handler) UpdateTheme(c *gin.Context) {
 		return
 	}
 
-	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+	if !u.IsOneTimeSupporter && !u.IsSubscriber && !u.IsAdmin {
 		response.Forbidden(c, "custom domains are available to supporters")
 		return
 	}

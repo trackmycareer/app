@@ -331,7 +331,7 @@ func (h *Handler) GetPublicProfileByDomain(c *gin.Context) {
 	}
 
 	// Verify the user is still a supporter.
-	if !u.IsOneTimeSupporter && !u.IsSubscriber {
+	if !u.IsOneTimeSupporter && !u.IsSubscriber && !u.IsAdmin {
 		response.NotFound(c, "profile not found")
 		return
 	}

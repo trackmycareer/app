@@ -59,7 +59,7 @@ export default function ProfileSettings() {
     }
   }, [customDomain?.accent_colour]);
 
-  const isSupporter = user?.is_one_time_supporter || user?.is_subscriber;
+  const isSupporter = user?.is_one_time_supporter || user?.is_subscriber || user?.is_admin;
 
   const validateDomain = useCallback((value: string): string => {
     if (!value.trim()) return "Domain is required";
