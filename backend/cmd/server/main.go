@@ -297,7 +297,7 @@ func main() {
 
 	// Public profile routes (no auth required)
 	v1.GET("/profiles/:username", profileHandler.GetPublicProfile)
-	v1.GET("/profiles/by-domain/:domain", middleware.PublicCORS(), middleware.IPRateLimit(rate.Limit(30.0/60.0), 60), profileHandler.GetPublicProfileByDomain)
+	v1.GET("/profiles/by-domain/:domain", middleware.IPRateLimit(rate.Limit(30.0/60.0), 60), profileHandler.GetPublicProfileByDomain)
 
 	// Public config (feature flags)
 	v1.GET("/config", polar.GetConfigHandler(cfg))
