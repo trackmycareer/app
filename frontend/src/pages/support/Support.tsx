@@ -43,12 +43,10 @@ export default function Support() {
       <Topbar title="Support" />
       <div className="mx-auto max-w-2xl space-y-8 p-4 lg:p-6">
         <div className="space-y-2">
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">
-            Support trackmy.career
-          </h1>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Support trackmy.career</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            trackmy.career is free to use. If you find it useful, consider supporting
-            its development. Every contribution helps keep the project running and improving.
+            trackmy.career is free to use. If you find it useful, consider supporting its
+            development. Every contribution helps keep the project running and improving.
           </p>
         </div>
 
@@ -107,7 +105,12 @@ export default function Support() {
                 className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
                   bg-[var(--accent-warm)]/10"
               >
-                <HeartIcon width={12} height={12} className="text-[var(--accent-warm)]" aria-hidden="true" />
+                <HeartIcon
+                  width={12}
+                  height={12}
+                  className="text-[var(--accent-warm)]"
+                  aria-hidden="true"
+                />
               </div>
               <span className="text-sm text-[var(--text-secondary)]">
                 <strong className="font-medium text-[var(--text-primary)]">
@@ -121,7 +124,12 @@ export default function Support() {
                 className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
                   bg-[var(--accent-warm)]/10"
               >
-                <HeartIcon width={12} height={12} className="text-[var(--accent-warm)]" aria-hidden="true" />
+                <HeartIcon
+                  width={12}
+                  height={12}
+                  className="text-[var(--accent-warm)]"
+                  aria-hidden="true"
+                />
               </div>
               <span className="text-sm text-[var(--text-secondary)]">
                 <strong className="font-medium text-[var(--text-primary)]">
@@ -135,13 +143,36 @@ export default function Support() {
                 className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
                   bg-[var(--accent-warm)]/10"
               >
-                <HeartIcon width={12} height={12} className="text-[var(--accent-warm)]" aria-hidden="true" />
+                <HeartIcon
+                  width={12}
+                  height={12}
+                  className="text-[var(--accent-warm)]"
+                  aria-hidden="true"
+                />
               </div>
               <span className="text-sm text-[var(--text-secondary)]">
                 <strong className="font-medium text-[var(--text-primary)]">
                   Visible on your public profile
                 </strong>{" "}
                 so visitors can see you support the tools you use.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <div
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
+                  bg-[var(--accent-warm)]/10"
+              >
+                <HeartIcon
+                  width={12}
+                  height={12}
+                  className="text-[var(--accent-warm)]"
+                  aria-hidden="true"
+                />
+              </div>
+              <span className="text-sm text-[var(--text-secondary)]">
+                <strong className="font-medium text-[var(--text-primary)]">Custom domain</strong> to
+                host your public career profile at a web address you own, instead of a shared
+                trackmy.career link.
               </span>
             </li>
           </ul>

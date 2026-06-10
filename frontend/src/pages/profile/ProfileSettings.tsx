@@ -10,17 +10,21 @@ import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { Select } from "@/components/Select";
 import { Modal } from "@/components/Modal";
 import { ToggleSwitch } from "@/components/ToggleSwitch";
-import { SpinnerIcon, LinkIcon, VerifiedBadgeIcon } from "@/components/icons";
-import {
-  useProfileSettings,
-  useUpdateProfileMutation,
-} from "@/hooks/queries/useProfileQuery";
+import { SpinnerIcon, LinkIcon, VerifiedBadgeIcon, ExternalLinkIcon } from "@/components/icons";
+import { useProfileSettings, useUpdateProfileMutation } from "@/hooks/queries/useProfileQuery";
 import {
   useLinkedAccounts,
   useAddWebsiteMutation,
   useVerifyWebsiteMutation,
   useUnlinkAccountMutation,
 } from "@/hooks/queries/useLinkedAccountsQuery";
+import {
+  useCustomDomain,
+  useCreateCustomDomain,
+  useVerifyCustomDomain,
+  useRemoveCustomDomain,
+  useUpdateCustomDomainTheme,
+} from "@/hooks/queries/useCustomDomain";
 import { apiClient } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import type { ProfileVisibility } from "@/types";
@@ -35,6 +39,66 @@ export default function ProfileSettings() {
   const verifyWebsiteMutation = useVerifyWebsiteMutation();
   const unlinkMutation = useUnlinkAccountMutation();
   const [websiteInput, setWebsiteInput] = useState("");
+
+  /* ---- Custom domain state ---- */
+  const { data: customDomain, isLoading: isCustomDomainLoading } = useCustomDomain();
+  const createDomainMutation = useCreateCustomDomain();
+  const verifyDomainMutation = useVerifyCustomDomain();
+  const removeDomainMutation = useRemoveCustomDomain();
+  const updateThemeMutation = useUpdateCustomDomainTheme();
+  const [domainInput, setDomainInput] = useState("");
+  const [domainInputError, setDomainInputError] = useState("");
+  const [accentColourInput, setAccentColourInput] = useState("#6366f1");
+  const [showRemoveDomainModal, setShowRemoveDomainModal] = useState(false);
+  const domainSectionRef = useRef<HTMLHeadingElement>(null);
+
+  // Sync accent colour input when custom domain data loads
+  useEffect(() => {
+    if (customDomain?.accent_colour) {
+      setAccentColourInput(customDomain.accent_colour);
+    }
+  }, [customDomain?.accent_colour]);
+
+  const isSupporter = user?.is_one_time_supporter || user?.is_subscriber || user?.is_admin;
+
+  const validateDomain = useCallback((value: string): string => {
+    if (!value.trim()) return "Domain is required";
+    // Basic domain format validation
+    const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    if (!domainRegex.test(value.trim())) {
+      return "Please enter a valid domain (e.g. portfolio.yourdomain.com)";
+    }
+    return "";
+  }, []);
+
+  const handleCreateDomain = useCallback(() => {
+    const trimmed = domainInput.trim();
+    const error = validateDomain(trimmed);
+    if (error) {
+      setDomainInputError(error);
+      return;
+    }
+    setDomainInputError("");
+    createDomainMutation.mutate(trimmed, {
+      onSuccess: () => {
+        setDomainInput("");
+        setTimeout(() => domainSectionRef.current?.focus(), 100);
+      },
+    });
+  }, [domainInput, validateDomain, createDomainMutation]);
+
+  const handleRemoveDomain = useCallback(() => {
+    removeDomainMutation.mutate(undefined, {
+      onSuccess: () => {
+        setShowRemoveDomainModal(false);
+        setTimeout(() => domainSectionRef.current?.focus(), 100);
+      },
+    });
+  }, [removeDomainMutation]);
+
+  const handleSaveTheme = useCallback(() => {
+    updateThemeMutation.mutate(accentColourInput);
+  }, [accentColourInput, updateThemeMutation]);
 
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
@@ -342,12 +406,9 @@ export default function ProfileSettings() {
     ],
   );
 
-  const handleVisibilityChange = useCallback(
-    (key: keyof ProfileVisibility, val: boolean) => {
-      setVisibility((prev) => ({ ...prev, [key]: val }));
-    },
-    [],
-  );
+  const handleVisibilityChange = useCallback((key: keyof ProfileVisibility, val: boolean) => {
+    setVisibility((prev) => ({ ...prev, [key]: val }));
+  }, []);
 
   if (isLoading) {
     return (
@@ -423,9 +484,7 @@ export default function ProfileSettings() {
                   >
                     Upload photo
                   </Button>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    JPG, PNG or WebP. Max 2MB.
-                  </p>
+                  <p className="text-xs text-[var(--text-tertiary)]">JPG, PNG or WebP. Max 2MB.</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -498,9 +557,7 @@ export default function ProfileSettings() {
                     focus:outline-none focus:ring-2 focus:ring-[var(--accent-default)]
                     focus:ring-offset-1 focus:ring-offset-[var(--bg-base)]"
                 />
-                <p className="text-right text-xs text-[var(--text-tertiary)]">
-                  {bio.length} / 500
-                </p>
+                <p className="text-right text-xs text-[var(--text-tertiary)]">{bio.length} / 500</p>
               </div>
 
               {/* Location */}
@@ -547,9 +604,7 @@ export default function ProfileSettings() {
               bg-[var(--bg-surface)] p-5"
             aria-label="Profile visibility"
           >
-            <h2 className="mb-2 text-base font-semibold text-[var(--text-primary)]">
-              Visibility
-            </h2>
+            <h2 className="mb-2 text-base font-semibold text-[var(--text-primary)]">Visibility</h2>
             <p className="mb-4 text-xs text-[var(--text-tertiary)]">
               Choose which sections are visible on your public profile.
             </p>
@@ -589,245 +644,560 @@ export default function ProfileSettings() {
           </div>
         </form>
 
-          {/* Connected accounts */}
-          <section
-            className="rounded-[var(--radius-xl)] border border-[var(--border-default)]
+        {/* Custom domain */}
+        <section
+          className="rounded-[var(--radius-xl)] border border-[var(--border-default)]
               bg-[var(--bg-surface)] p-5"
-            aria-label="Connected accounts"
+          aria-label="Custom domain"
+        >
+          <h2
+            ref={domainSectionRef}
+            tabIndex={-1}
+            className="mb-1 text-base font-semibold text-[var(--text-primary)] outline-none"
           >
-            <h2 className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-              Connected accounts
-            </h2>
-            <p className="mb-4 text-xs text-[var(--text-tertiary)]">
-              Link your accounts to prove ownership. Verified accounts show a badge on your public
-              profile.
+            Custom domain
+          </h2>
+          <p className="mb-4 text-xs text-[var(--text-tertiary)]">
+            Serve your public profile from your own domain.
+          </p>
+
+          {!isSupporter ? (
+            /* State 1: Not a supporter */
+            <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+              <svg
+                className="h-5 w-5 shrink-0 text-[var(--text-tertiary)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Custom domains are available to supporters. Support trackmy.career to unlock this
+                  feature.
+                </p>
+                <a
+                  href="/support"
+                  className="mt-2 inline-flex items-center text-sm font-medium text-[var(--accent-default)] transition-colors hover:text-[var(--accent-bright)]"
+                >
+                  Become a supporter
+                </a>
+              </div>
+            </div>
+          ) : isCustomDomainLoading ? (
+            <div className="flex items-center justify-center py-6" role="status">
+              <SpinnerIcon width={20} height={20} aria-hidden="true" />
+              <span className="sr-only">Loading custom domain settings...</span>
+            </div>
+          ) : !customDomain ? (
+            /* State 2: Supporter, no domain */
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateDomain();
+              }}
+              className="space-y-3"
+            >
+              <div className="flex gap-2">
+                <TextInput
+                  label="Custom domain"
+                  placeholder="portfolio.yourdomain.com"
+                  value={domainInput}
+                  onChange={(e) => {
+                    setDomainInput(e.target.value);
+                    if (domainInputError) setDomainInputError("");
+                  }}
+                  error={domainInputError}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  size="sm"
+                  loading={createDomainMutation.isPending}
+                >
+                  Connect domain
+                </Button>
+              </div>
+            </form>
+          ) : customDomain.status === "pending" || customDomain.status === "failed" ? (
+            /* State 3: Domain pending (or failed) */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {customDomain.domain}
+                  </span>
+                  <span
+                    role="status"
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      customDomain.status === "failed"
+                        ? "bg-[var(--color-error)]/10 text-[var(--color-error)]"
+                        : "bg-amber-500/10 text-[var(--color-warning)]"
+                    }`}
+                  >
+                    <span className="sr-only">Domain status: </span>
+                    {customDomain.status === "failed" ? "Failed" : "Pending"}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="rounded-[var(--radius-md)] border border-[var(--border-subtle)]
+                    bg-[var(--bg-elevated)] p-3"
+                role="region"
+                aria-label="DNS configuration instructions"
+              >
+                <p className="mb-2 text-xs font-semibold text-[var(--text-primary)]">
+                  Point your domain to the CNAME target below by adding a CNAME record at your DNS
+                  provider:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code
+                    className="flex-1 rounded-[var(--radius-sm)] bg-[var(--bg-base)] px-3 py-2
+                        text-xs font-mono text-[var(--text-secondary)] break-all"
+                  >
+                    {customDomain.cname_target}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    aria-label="Copy CNAME target to clipboard"
+                    onClick={() => {
+                      navigator.clipboard.writeText(customDomain.cname_target);
+                      toast.success("Copied to clipboard");
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+                  Record type: CNAME, Host: your subdomain, Value: {customDomain.cname_target}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
+                <span>SSL:</span>
+                <span
+                  role="status"
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
+                    customDomain.ssl_status === "active"
+                      ? "bg-green-500/10 text-[var(--color-success)]"
+                      : "bg-amber-500/10 text-[var(--color-warning)]"
+                  }`}
+                >
+                  <span className="sr-only">SSL status: </span>
+                  {customDomain.ssl_status}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => verifyDomainMutation.mutate()}
+                  loading={verifyDomainMutation.isPending}
+                >
+                  Check status
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="!border-red-200 !text-red-500"
+                  onClick={() => setShowRemoveDomainModal(true)}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* State 4: Domain active */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {customDomain.domain}
+                  </span>
+                  <span role="status" className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-[var(--color-success)]">
+                    <span className="sr-only">Domain status: </span>
+                    Active
+                  </span>
+                </div>
+                <a
+                  href={`https://${customDomain.domain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-[var(--accent-default)] transition-colors hover:text-[var(--accent-bright)]"
+                  aria-label={`Visit ${customDomain.domain}`}
+                >
+                  Visit
+                  <ExternalLinkIcon width={14} height={14} aria-hidden="true" />
+                </a>
+              </div>
+
+              {/* Accent colour picker */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="accent-colour-picker"
+                  className="text-sm font-medium text-[var(--text-secondary)]"
+                >
+                  Accent colour
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="accent-colour-picker"
+                    type="color"
+                    value={accentColourInput}
+                    onChange={(e) => setAccentColourInput(e.target.value)}
+                    className="h-10 w-10 cursor-pointer rounded-[var(--radius-md)] border border-[var(--border-default)] bg-transparent p-0.5"
+                    aria-label="Choose accent colour"
+                  />
+                  <TextInput
+                    label="Hex value"
+                    value={accentColourInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAccentColourInput(val);
+                    }}
+                    placeholder="#6366f1"
+                    className="!w-28 font-mono"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveTheme}
+                    loading={updateThemeMutation.isPending}
+                    disabled={accentColourInput === customDomain.accent_colour}
+                  >
+                    Save
+                  </Button>
+                </div>
+                <div
+                  className="h-2 w-full rounded-full"
+                  style={{ backgroundColor: accentColourInput }}
+                  aria-hidden="true"
+                />
+              </div>
+
+              <div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="!border-red-200 !text-red-500"
+                  onClick={() => setShowRemoveDomainModal(true)}
+                >
+                  Remove domain
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Remove domain confirmation modal */}
+        <Modal
+          open={showRemoveDomainModal}
+          onClose={() => setShowRemoveDomainModal(false)}
+          title="Remove custom domain"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Are you sure you want to remove <strong>{customDomain?.domain}</strong>? Your profile
+              will no longer be accessible via this domain.
             </p>
-            <div className="divide-y divide-[var(--border-subtle)]">
-              {/* LinkedIn */}
-              {(() => {
-                const linkedin = linkedAccounts?.find((a) => a.provider === "linkedin");
-                return (
-                  <div className="flex items-center justify-between py-3">
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setShowRemoveDomainModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleRemoveDomain}
+                loading={removeDomainMutation.isPending}
+              >
+                Remove domain
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Connected accounts */}
+        <section
+          className="rounded-[var(--radius-xl)] border border-[var(--border-default)]
+              bg-[var(--bg-surface)] p-5"
+          aria-label="Connected accounts"
+        >
+          <h2 className="mb-1 text-base font-semibold text-[var(--text-primary)]">
+            Connected accounts
+          </h2>
+          <p className="mb-4 text-xs text-[var(--text-tertiary)]">
+            Link your accounts to prove ownership. Verified accounts show a badge on your public
+            profile.
+          </p>
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {/* LinkedIn */}
+            {(() => {
+              const linkedin = linkedAccounts?.find((a) => a.provider === "linkedin");
+              return (
+                <div className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="h-5 w-5 text-[#0a66c2]"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    </svg>
+                    <div>
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
+                        LinkedIn
+                        {linkedin?.verified && <VerifiedBadgeIcon />}
+                      </div>
+                      {linkedin ? (
+                        <p className="text-xs text-[var(--color-success)]">
+                          {linkedin.profile_url}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[var(--text-tertiary)]">Not connected</p>
+                      )}
+                    </div>
+                  </div>
+                  {linkedin ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      aria-label="Unlink LinkedIn account"
+                      onClick={() => {
+                        if (confirm("Unlink your LinkedIn account?")) {
+                          unlinkMutation.mutate("linkedin");
+                        }
+                      }}
+                      loading={unlinkMutation.isPending}
+                      className="!border-red-200 !text-red-500"
+                    >
+                      Unlink
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      aria-label="Link LinkedIn account"
+                      onClick={() => {
+                        apiClient.linkedAccounts.initiateLink("linkedin").then((res) => {
+                          window.location.href = res.data.data.auth_url;
+                        });
+                      }}
+                    >
+                      Link account
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* GitHub */}
+            {(() => {
+              const github = linkedAccounts?.find((a) => a.provider === "github");
+              return (
+                <div className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="h-5 w-5 text-[var(--text-primary)]"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+                    </svg>
+                    <div>
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
+                        GitHub
+                        {github?.verified && <VerifiedBadgeIcon />}
+                      </div>
+                      {github ? (
+                        <p className="text-xs text-[var(--color-success)]">{github.profile_url}</p>
+                      ) : (
+                        <p className="text-xs text-[var(--text-tertiary)]">Not connected</p>
+                      )}
+                    </div>
+                  </div>
+                  {github ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      aria-label="Unlink GitHub account"
+                      onClick={() => {
+                        if (confirm("Unlink your GitHub account?")) {
+                          unlinkMutation.mutate("github");
+                        }
+                      }}
+                      loading={unlinkMutation.isPending}
+                      className="!border-red-200 !text-red-500"
+                    >
+                      Unlink
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      aria-label="Link GitHub account"
+                      onClick={() => {
+                        apiClient.linkedAccounts.initiateLink("github").then((res) => {
+                          window.location.href = res.data.data.auth_url;
+                        });
+                      }}
+                    >
+                      Link account
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Website */}
+            {(() => {
+              const website = linkedAccounts?.find((a) => a.provider === "website");
+              return (
+                <div className="py-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <svg className="h-5 w-5 text-[#0a66c2]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                      <svg
+                        className="h-5 w-5 text-[var(--text-tertiary)]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={1.5}
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3"
+                        />
                       </svg>
                       <div>
                         <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
-                          LinkedIn
-                          {linkedin?.verified && <VerifiedBadgeIcon />}
+                          Website
+                          {website?.verified && <VerifiedBadgeIcon />}
                         </div>
-                        {linkedin ? (
-                          <p className="text-xs text-[var(--color-success)]">{linkedin.profile_url}</p>
+                        {website ? (
+                          <p
+                            className={`text-xs ${website.verified ? "text-[var(--color-success)]" : "text-[var(--color-warning)]"}`}
+                          >
+                            {website.verified ? website.profile_url : "Pending verification"}
+                          </p>
                         ) : (
                           <p className="text-xs text-[var(--text-tertiary)]">Not connected</p>
                         )}
                       </div>
                     </div>
-                    {linkedin ? (
+                    {website && (
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        aria-label="Unlink LinkedIn account"
+                        aria-label="Remove website"
                         onClick={() => {
-                          if (confirm("Unlink your LinkedIn account?")) {
-                            unlinkMutation.mutate("linkedin");
+                          if (confirm("Remove your website?")) {
+                            unlinkMutation.mutate("website");
                           }
                         }}
                         loading={unlinkMutation.isPending}
                         className="!border-red-200 !text-red-500"
                       >
-                        Unlink
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        aria-label="Link LinkedIn account"
-                        onClick={() => {
-                          apiClient.linkedAccounts.initiateLink("linkedin").then((res) => {
-                            window.location.href = res.data.data.auth_url;
-                          });
-                        }}
-                      >
-                        Link account
+                        Remove
                       </Button>
                     )}
                   </div>
-                );
-              })()}
 
-              {/* GitHub */}
-              {(() => {
-                const github = linkedAccounts?.find((a) => a.provider === "github");
-                return (
-                  <div className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-3">
-                      <svg className="h-5 w-5 text-[var(--text-primary)]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-                      </svg>
-                      <div>
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
-                          GitHub
-                          {github?.verified && <VerifiedBadgeIcon />}
-                        </div>
-                        {github ? (
-                          <p className="text-xs text-[var(--color-success)]">{github.profile_url}</p>
-                        ) : (
-                          <p className="text-xs text-[var(--text-tertiary)]">Not connected</p>
-                        )}
-                      </div>
+                  {!website && (
+                    <div className="mt-3 flex gap-2">
+                      <TextInput
+                        label=""
+                        aria-label="Website URL"
+                        type="url"
+                        placeholder="https://yourdomain.com"
+                        value={websiteInput}
+                        onChange={(e) => setWebsiteInput(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        aria-label="Add website"
+                        onClick={() => {
+                          if (websiteInput.trim()) {
+                            addWebsiteMutation.mutate(websiteInput.trim());
+                            setWebsiteInput("");
+                          }
+                        }}
+                        loading={addWebsiteMutation.isPending}
+                      >
+                        Add
+                      </Button>
                     </div>
-                    {github ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        aria-label="Unlink GitHub account"
-                        onClick={() => {
-                          if (confirm("Unlink your GitHub account?")) {
-                            unlinkMutation.mutate("github");
-                          }
-                        }}
-                        loading={unlinkMutation.isPending}
-                        className="!border-red-200 !text-red-500"
-                      >
-                        Unlink
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        aria-label="Link GitHub account"
-                        onClick={() => {
-                          apiClient.linkedAccounts.initiateLink("github").then((res) => {
-                            window.location.href = res.data.data.auth_url;
-                          });
-                        }}
-                      >
-                        Link account
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
+                  )}
 
-              {/* Website */}
-              {(() => {
-                const website = linkedAccounts?.find((a) => a.provider === "website");
-                return (
-                  <div className="py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <svg className="h-5 w-5 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" />
-                        </svg>
-                        <div>
-                          <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
-                            Website
-                            {website?.verified && <VerifiedBadgeIcon />}
-                          </div>
-                          {website ? (
-                            <p className={`text-xs ${website.verified ? "text-[var(--color-success)]" : "text-[var(--color-warning)]"}`}>
-                              {website.verified ? website.profile_url : "Pending verification"}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-[var(--text-tertiary)]">Not connected</p>
-                          )}
-                        </div>
-                      </div>
-                      {website && (
+                  {website && !website.verified && website.verify_token && (
+                    <div
+                      className="mt-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3"
+                      role="region"
+                      aria-label="DNS verification instructions"
+                    >
+                      <p className="mb-2 text-xs font-semibold text-[var(--text-primary)]">
+                        Add this TXT record to your DNS:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 rounded-[var(--radius-sm)] bg-[var(--bg-base)] px-3 py-2 text-xs font-mono text-[var(--text-secondary)] break-all">
+                          {website.verify_token}
+                        </code>
                         <Button
                           type="button"
                           variant="secondary"
                           size="sm"
-                          aria-label="Remove website"
+                          aria-label="Copy DNS verification record to clipboard"
                           onClick={() => {
-                            if (confirm("Remove your website?")) {
-                              unlinkMutation.mutate("website");
-                            }
+                            navigator.clipboard.writeText(website.verify_token!);
+                            toast.success("Copied to clipboard");
                           }}
-                          loading={unlinkMutation.isPending}
-                          className="!border-red-200 !text-red-500"
                         >
-                          Remove
+                          Copy
                         </Button>
-                      )}
-                    </div>
-
-                    {!website && (
-                      <div className="mt-3 flex gap-2">
-                        <TextInput
-                          label=""
-                          aria-label="Website URL"
-                          type="url"
-                          placeholder="https://yourdomain.com"
-                          value={websiteInput}
-                          onChange={(e) => setWebsiteInput(e.target.value)}
-                        />
+                      </div>
+                      <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+                        Record type: TXT, Host: @, TTL: any
+                      </p>
+                      <div className="mt-3">
                         <Button
                           type="button"
                           size="sm"
-                          aria-label="Add website"
-                          onClick={() => {
-                            if (websiteInput.trim()) {
-                              addWebsiteMutation.mutate(websiteInput.trim());
-                              setWebsiteInput("");
-                            }
-                          }}
-                          loading={addWebsiteMutation.isPending}
+                          onClick={() => verifyWebsiteMutation.mutate()}
+                          loading={verifyWebsiteMutation.isPending}
                         >
-                          Add
+                          Verify now
                         </Button>
                       </div>
-                    )}
-
-                    {website && !website.verified && website.verify_token && (
-                      <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3" role="region" aria-label="DNS verification instructions">
-                        <p className="mb-2 text-xs font-semibold text-[var(--text-primary)]">
-                          Add this TXT record to your DNS:
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <code className="flex-1 rounded-[var(--radius-sm)] bg-[var(--bg-base)] px-3 py-2 text-xs font-mono text-[var(--text-secondary)] break-all">
-                            {website.verify_token}
-                          </code>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            aria-label="Copy DNS verification record to clipboard"
-                            onClick={() => {
-                              navigator.clipboard.writeText(website.verify_token!);
-                              toast.success("Copied to clipboard");
-                            }}
-                          >
-                            Copy
-                          </Button>
-                        </div>
-                        <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-                          Record type: TXT, Host: @, TTL: any
-                        </p>
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => verifyWebsiteMutation.mutate()}
-                            loading={verifyWebsiteMutation.isPending}
-                          >
-                            Verify now
-                          </Button>
-                        </div>
-                        <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-                          DNS changes can take up to 48 hours to propagate. Verified domains are re-checked monthly.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </section>
+                      <p className="mt-2 text-xs text-[var(--text-tertiary)]">
+                        DNS changes can take up to 48 hours to propagate. Verified domains are
+                        re-checked monthly.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
 
         {/* Password section (only for email provider) */}
         {isEmailProvider && (
@@ -892,15 +1262,11 @@ export default function ProfileSettings() {
             bg-[var(--bg-surface)] p-5"
           aria-label="Account information"
         >
-          <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">
-            Account
-          </h2>
+          <h2 className="mb-4 text-base font-semibold text-[var(--text-primary)]">Account</h2>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-[var(--text-secondary)]">Email</span>
-              <span className="text-[var(--text-tertiary)]">
-                {user?.email ?? ""}
-              </span>
+              <span className="text-[var(--text-tertiary)]">{user?.email ?? ""}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[var(--text-secondary)]">Sign-in provider</span>

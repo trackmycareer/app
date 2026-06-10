@@ -174,6 +174,8 @@ export interface PublicProfile {
   avatar_url: string | null;
   is_staff: boolean;
   is_supporter: boolean;
+  is_custom_domain?: boolean;
+  accent_colour?: string;
   linked_accounts: PublicLinkedAccount[];
   level: number;
   level_title: string;
@@ -294,4 +296,15 @@ export interface PasskeyInfo {
   name: string;
   created_at: string;
   last_used_at: string | null;
+}
+
+export interface CustomDomain {
+  id: string;
+  domain: string;
+  status: "pending" | "active" | "failed";
+  ssl_status: string;
+  accent_colour: string;
+  cname_target: string;
+  created_at: string;
+  verified_at: string | null;
 }

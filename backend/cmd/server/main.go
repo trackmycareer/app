@@ -16,6 +16,8 @@ import (
 
 	"github.com/trackmycareer/app/internal/admin"
 	"github.com/trackmycareer/app/internal/auth"
+	"github.com/trackmycareer/app/internal/cloudflare"
+	"github.com/trackmycareer/app/internal/customdomain"
 	"github.com/trackmycareer/app/internal/mfa"
 	"github.com/trackmycareer/app/internal/mfa/backup"
 	mfacrypto "github.com/trackmycareer/app/internal/mfa/crypto"
@@ -119,6 +121,7 @@ func main() {
 	skillRepo := skill.NewRepository(pool)
 	gamificationRepo := gamification.NewRepository(pool)
 	linkedAccountRepo := linkedaccount.NewRepository(pool)
+	customDomainRepo := customdomain.NewRepository(pool)
 	verificationRepo := verification.NewRepository(pool)
 
 	// Services
@@ -192,6 +195,13 @@ func main() {
 	locationService := location.NewService(locationRepo, locationCache, photonClient)
 	linkedAccountService := linkedaccount.NewService(linkedAccountRepo)
 
+	// Cloudflare for SaaS (custom domains)
+	var cfClient *cloudflare.Client
+	if cfg.CloudflareEnabled() {
+		cfClient = cloudflare.NewClient(cfg.CloudflareAPIToken, cfg.CloudflareZoneID, cfg.CloudflareCustomFallback)
+	}
+	customDomainService := customdomain.NewService(customDomainRepo, cfClient, cfg.CloudflareCustomFallback)
+
 	// Import
 	importerService := importer.NewService(jobRepo, certRepo, skillRepo, winRepo, userRepo, gamificationService)
 
@@ -200,7 +210,7 @@ func main() {
 	adminHandler := admin.NewHandler(adminService, userRepo)
 	authHandler := auth.NewHandler(authService, oauthManager, settingsRepo, cfg.FrontendURL, verificationService, mfaService)
 	exportHandler := export.NewHandler(exportService)
-	userHandler := user.NewHandler(userRepo, storageClient)
+	userHandler := user.NewHandler(userRepo, storageClient, customDomainService) // customDomainService implements user.DomainCleaner
 	settingsHandler := settings.NewHandler(settingsRepo)
 	tagHandler := tag.NewHandler(tagRepo)
 	winHandler := win.NewHandler(winService, gamificationService)
@@ -219,7 +229,8 @@ func main() {
 	)
 	verificationHandler := verification.NewHandler(verificationService)
 	passwordResetHandler := passwordreset.NewHandler(passwordResetService, passkeyChallengeFunc)
-	profileHandler := profile.NewHandler(userRepo, gamificationRepo, winRepo, jobRepo, certRepo, skillRepo, linkedAccountService)
+	customDomainHandler := customdomain.NewHandler(customDomainService, userRepo)
+	profileHandler := profile.NewHandler(userRepo, gamificationRepo, winRepo, jobRepo, certRepo, skillRepo, linkedAccountService, customDomainRepo)
 
 	// Router
 	router := gin.New()
@@ -241,7 +252,10 @@ func main() {
 		}
 		c.Next()
 	})
-	router.Use(middleware.CORS(cfg.AllowedOrigins))
+	router.Use(middleware.CORS(cfg.AllowedOrigins, func(hostname string) bool {
+		d, err := customDomainRepo.GetByDomain(context.Background(), hostname)
+		return err == nil && d != nil && d.Status == "active"
+	}))
 	router.Use(middleware.SecurityHeaders())
 
 	// Health check
@@ -281,8 +295,9 @@ func main() {
 	// Public email change confirmation (no auth, user clicks link from email)
 	v1.POST("/user/me/email/confirm", verificationHandler.ConfirmEmailChange)
 
-	// Public profile route (no auth required)
+	// Public profile routes (no auth required)
 	v1.GET("/profiles/:username", profileHandler.GetPublicProfile)
+	v1.GET("/profiles/by-domain/:domain", middleware.IPRateLimit(rate.Limit(30.0/60.0), 60), profileHandler.GetPublicProfileByDomain)
 
 	// Public config (feature flags)
 	v1.GET("/config", polar.GetConfigHandler(cfg))
@@ -400,6 +415,16 @@ func main() {
 			linkedGroup.POST("/website", linkedAccountHandler.AddWebsite)
 			linkedGroup.POST("/website/verify", linkedAccountHandler.VerifyWebsite)
 			linkedGroup.DELETE("/:provider", linkedAccountHandler.Unlink)
+		}
+
+		// Custom domains (rate-limited: create 3/min, verify 10/min)
+		customDomainGroup := verified.Group("/custom-domain")
+		{
+			customDomainGroup.POST("", middleware.IPRateLimit(rate.Limit(3.0/60.0), 5), customDomainHandler.Create)
+			customDomainGroup.GET("", customDomainHandler.Get)
+			customDomainGroup.DELETE("", customDomainHandler.Delete)
+			customDomainGroup.POST("/verify", middleware.IPRateLimit(rate.Limit(10.0/60.0), 20), customDomainHandler.Verify)
+			customDomainGroup.PUT("/theme", customDomainHandler.UpdateTheme)
 		}
 
 		// MFA management
