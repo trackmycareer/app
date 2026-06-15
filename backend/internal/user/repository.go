@@ -41,13 +41,13 @@ func scanUser(row pgx.Row) (User, error) {
 
 func (r *Repository) Create(ctx context.Context, u *User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, name, avatar_url, provider, provider_id, username, bio, profile_visibility, email_verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (id, email, password_hash, name, avatar_url, provider, provider_id, username, bio, email_verified)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING is_admin, created_at, updated_at`
 
 	return r.pool.QueryRow(ctx, query,
 		u.ID, u.Email, u.PasswordHash, u.Name, u.AvatarURL, u.Provider, u.ProviderID,
-		u.Username, u.Bio, u.ProfileVisibility, u.EmailVerified,
+		u.Username, u.Bio, u.EmailVerified,
 	).Scan(&u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
 }
 
