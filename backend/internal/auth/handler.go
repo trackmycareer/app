@@ -160,6 +160,7 @@ func (h *Handler) OAuthCallback(c *gin.Context) {
 
 	result, err := h.oauthManager.HandleCallback(c.Request.Context(), provider, req.Code)
 	if err != nil {
+		slog.Error("OAuth callback failed", "provider", provider, "error", err.Error())
 		response.Error(c, http.StatusUnauthorized, "authentication failed")
 		return
 	}
