@@ -5,6 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { UserDetailDrawer } from "@/components/UserDetailDrawer";
 import { SpinnerIcon, UsersIcon } from "@/components/icons";
 import { apiClient } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
@@ -15,8 +16,7 @@ const PAGE_SIZE = 20;
 const adminKeys = {
   all: ["admin"] as const,
   users: () => [...adminKeys.all, "users"] as const,
-  userList: (params: Record<string, string | number>) =>
-    [...adminKeys.users(), params] as const,
+  userList: (params: Record<string, string | number>) => [...adminKeys.users(), params] as const,
   stats: () => [...adminKeys.all, "stats"] as const,
 };
 
@@ -28,6 +28,7 @@ export default function AdminUsers() {
   const [offset, setOffset] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [toggleTarget, setToggleTarget] = useState<User | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const params: Record<string, string | number> = {
     limit: PAGE_SIZE,
@@ -49,6 +50,7 @@ export default function AdminUsers() {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       toast.success("User deleted");
       setDeleteTarget(null);
+      setDetailUserId(null);
     },
   });
 
@@ -79,6 +81,8 @@ export default function AdminUsers() {
       isAdmin: !toggleTarget.is_admin,
     });
   }, [toggleTarget, toggleAdminMutation]);
+
+  const handleCloseDetail = useCallback(() => setDetailUserId(null), []);
 
   const hasMore = offset + PAGE_SIZE < total;
   const hasPrevious = offset > 0;
@@ -140,174 +144,207 @@ export default function AdminUsers() {
                 No users found
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
-                {search
-                  ? "Try adjusting your search term."
-                  : "No users have registered yet."}
+                {search ? "Try adjusting your search term." : "No users have registered yet."}
               </p>
             </div>
           )}
 
           {!isLoading && !isError && users.length > 0 && (
             <>
-            {/* Mobile card layout */}
-            <div className="space-y-3 sm:hidden">
-              {users.map((u) => {
-                const isSelf = currentUser?.id === u.id;
-                return (
-                  <div
-                    key={u.id}
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)]
+              {/* Mobile card layout */}
+              <div className="space-y-3 sm:hidden">
+                {users.map((u) => {
+                  const isSelf = currentUser?.id === u.id;
+                  return (
+                    <div
+                      key={u.id}
+                      className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)]
                       bg-[var(--bg-surface)] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-[var(--text-primary)]">{u.name}</p>
-                        <p className="truncate text-sm text-[var(--text-secondary)]">{u.email}</p>
-                      </div>
-                      {u.is_admin && (
-                        <span
-                          className="inline-flex shrink-0 items-center rounded-full
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailUserId(u.id)}
+                            className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)]
+                            text-left font-medium text-[var(--text-primary)] underline
+                            decoration-[var(--border-strong)] underline-offset-2
+                            hover:text-[var(--accent-default)] hover:decoration-[var(--accent-default)]
+                            focus-visible:outline-none focus-visible:ring-2
+                            focus-visible:ring-[var(--accent-default)] focus-visible:ring-offset-2
+                            focus-visible:ring-offset-[var(--bg-surface)]"
+                            aria-label={`View details for ${u.name}`}
+                          >
+                            {u.name}
+                          </button>
+                          <p className="truncate text-sm text-[var(--text-secondary)]">{u.email}</p>
+                        </div>
+                        {u.is_admin && (
+                          <span
+                            className="inline-flex shrink-0 items-center rounded-full
                             bg-[var(--accent-default)]/10 px-2 py-0.5 text-xs
                             font-medium text-[var(--accent-default)]"
-                        >
-                          Admin
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--text-tertiary)]">
-                      <span
-                        className="inline-flex items-center rounded-full bg-[var(--bg-elevated)]
-                          px-2 py-0.5 font-medium text-[var(--text-secondary)]"
-                      >
-                        {u.provider}
-                      </span>
-                      <span>
-                        {new Date(u.created_at).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex gap-2 border-t border-[var(--border-subtle)] pt-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setToggleTarget(u)}
-                        disabled={isSelf}
-                        aria-label={
-                          u.is_admin
-                            ? `Remove admin from ${u.name}`
-                            : `Make ${u.name} admin`
-                        }
-                      >
-                        {u.is_admin ? "Remove admin" : "Make admin"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTarget(u)}
-                        disabled={isSelf}
-                        aria-label={`Delete ${u.name}`}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Desktop table layout */}
-            <div className="hidden overflow-x-auto sm:block">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr
-                    className="border-b border-[var(--border-default)]
-                      text-xs uppercase tracking-wider text-[var(--text-tertiary)]"
-                  >
-                    <th className="px-4 py-3 font-medium" scope="col">Name</th>
-                    <th className="px-4 py-3 font-medium" scope="col">Email</th>
-                    <th className="px-4 py-3 font-medium" scope="col">Provider</th>
-                    <th className="px-4 py-3 font-medium" scope="col">Role</th>
-                    <th className="px-4 py-3 font-medium" scope="col">Created</th>
-                    <th className="px-4 py-3 font-medium text-right" scope="col">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => {
-                    const isSelf = currentUser?.id === u.id;
-                    return (
-                      <tr
-                        key={u.id}
-                        className="border-b border-[var(--border-subtle)] transition-colors
-                          hover:bg-[var(--bg-hover)]"
-                      >
-                        <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
-                          {u.name}
-                        </td>
-                        <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="inline-flex items-center rounded-full
-                              bg-[var(--bg-elevated)] px-2 py-0.5 text-xs
-                              font-medium text-[var(--text-secondary)]"
                           >
-                            {u.provider}
+                            Admin
                           </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {u.is_admin ? (
-                            <span
-                              className="inline-flex items-center rounded-full
-                                bg-[var(--accent-default)]/10 px-2 py-0.5 text-xs
-                                font-medium text-[var(--accent-default)]"
-                            >
-                              Admin
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[var(--text-tertiary)]">User</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-[var(--text-tertiary)]">
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--text-tertiary)]">
+                        <span
+                          className="inline-flex items-center rounded-full bg-[var(--bg-elevated)]
+                          px-2 py-0.5 font-medium text-[var(--text-secondary)]"
+                        >
+                          {u.provider}
+                        </span>
+                        <span>
                           {new Date(u.created_at).toLocaleDateString("en-GB", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setToggleTarget(u)}
-                              disabled={isSelf}
-                              aria-label={
-                                u.is_admin
-                                  ? `Remove admin from ${u.name}`
-                                  : `Make ${u.name} admin`
-                              }
+                        </span>
+                      </div>
+                      <div className="mt-3 flex gap-2 border-t border-[var(--border-subtle)] pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setToggleTarget(u)}
+                          disabled={isSelf}
+                          aria-label={
+                            u.is_admin ? `Remove admin from ${u.name}` : `Make admin for ${u.name}`
+                          }
+                        >
+                          {u.is_admin ? "Remove admin" : "Make admin"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTarget(u)}
+                          disabled={isSelf}
+                          aria-label={`Delete ${u.name}`}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table layout */}
+              <div className="hidden overflow-x-auto sm:block">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr
+                      className="border-b border-[var(--border-default)]
+                      text-xs uppercase tracking-wider text-[var(--text-tertiary)]"
+                    >
+                      <th className="px-4 py-3 font-medium" scope="col">
+                        Name
+                      </th>
+                      <th className="px-4 py-3 font-medium" scope="col">
+                        Email
+                      </th>
+                      <th className="px-4 py-3 font-medium" scope="col">
+                        Provider
+                      </th>
+                      <th className="px-4 py-3 font-medium" scope="col">
+                        Role
+                      </th>
+                      <th className="px-4 py-3 font-medium" scope="col">
+                        Created
+                      </th>
+                      <th className="px-4 py-3 font-medium text-right" scope="col">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => {
+                      const isSelf = currentUser?.id === u.id;
+                      return (
+                        <tr
+                          key={u.id}
+                          className="border-b border-[var(--border-subtle)] transition-colors
+                          hover:bg-[var(--bg-hover)]"
+                        >
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setDetailUserId(u.id)}
+                              className="rounded-[var(--radius-sm)] py-1 text-left font-medium
+                              text-[var(--text-primary)] underline decoration-[var(--border-strong)]
+                              underline-offset-2 hover:text-[var(--accent-default)]
+                              hover:decoration-[var(--accent-default)] focus-visible:outline-none
+                              focus-visible:ring-2 focus-visible:ring-[var(--accent-default)]
+                              focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)]"
+                              aria-label={`View details for ${u.name}`}
                             >
-                              {u.is_admin ? "Remove admin" : "Make admin"}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setDeleteTarget(u)}
-                              disabled={isSelf}
-                              aria-label={`Delete ${u.name}`}
+                              {u.name}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">{u.email}</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className="inline-flex items-center rounded-full
+                              bg-[var(--bg-elevated)] px-2 py-0.5 text-xs
+                              font-medium text-[var(--text-secondary)]"
                             >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {u.provider}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {u.is_admin ? (
+                              <span
+                                className="inline-flex items-center rounded-full
+                                bg-[var(--accent-default)]/10 px-2 py-0.5 text-xs
+                                font-medium text-[var(--accent-default)]"
+                              >
+                                Admin
+                              </span>
+                            ) : (
+                              <span className="text-xs text-[var(--text-tertiary)]">User</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-[var(--text-tertiary)]">
+                            {new Date(u.created_at).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setToggleTarget(u)}
+                                disabled={isSelf}
+                                aria-label={
+                                  u.is_admin
+                                    ? `Remove admin from ${u.name}`
+                                    : `Make admin for ${u.name}`
+                                }
+                              >
+                                {u.is_admin ? "Remove admin" : "Make admin"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteTarget(u)}
+                                disabled={isSelf}
+                                aria-label={`Delete ${u.name}`}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -338,6 +375,17 @@ export default function AdminUsers() {
         </section>
       </div>
 
+      {/* User detail drawer */}
+      <UserDetailDrawer
+        userId={detailUserId}
+        open={!!detailUserId}
+        onClose={handleCloseDetail}
+        isSelf={currentUser?.id === detailUserId}
+        onToggleAdmin={setToggleTarget}
+        onDelete={setDeleteTarget}
+        confirmOpen={!!deleteTarget || !!toggleTarget}
+      />
+
       {/* Delete confirmation modal */}
       <ConfirmModal
         open={!!deleteTarget}
@@ -354,9 +402,7 @@ export default function AdminUsers() {
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={handleToggleAdmin}
-        title={
-          toggleTarget?.is_admin ? "Remove admin privileges" : "Grant admin privileges"
-        }
+        title={toggleTarget?.is_admin ? "Remove admin privileges" : "Grant admin privileges"}
         message={
           toggleTarget?.is_admin
             ? `Are you sure you want to remove admin privileges from "${toggleTarget?.name}"?`

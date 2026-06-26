@@ -57,7 +57,13 @@ func (h *Handler) GetUser(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, u)
+	detail, err := h.svc.GetUserDetail(c.Request.Context(), u)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
+	response.OK(c, detail)
 }
 
 // DeleteUser removes a user by ID.

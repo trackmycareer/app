@@ -3,6 +3,8 @@ export interface User {
   email: string;
   name: string;
   avatar_url: string | null;
+  username?: string | null;
+  bio?: string | null;
   location: string | null;
   headline: string | null;
   open_to_work: string;
@@ -18,6 +20,68 @@ export interface User {
   supporter_since: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminActivityCounts {
+  wins: number;
+  jobs: number;
+  certifications: number;
+  certifications_passed: number;
+  skills: number;
+  evidence: number;
+  badges: number;
+}
+
+export interface AdminGamificationSummary {
+  total_points: number;
+  level: number;
+  level_title: string;
+  current_streak: number;
+  longest_streak: number;
+  last_active_on: string | null;
+}
+
+export interface AdminRecentWin {
+  id: string;
+  title: string;
+  category: string;
+  occurred_on: string;
+}
+
+export interface AdminRecentJob {
+  id: string;
+  company: string;
+  title: string;
+  start_date: string;
+  end_date: string | null;
+}
+
+export interface AdminRecentCert {
+  id: string;
+  name: string;
+  provider: string;
+  status: string;
+  earned_date: string | null;
+}
+
+export interface AdminRecentSkill {
+  id: string;
+  name: string;
+  category: string | null;
+  proficiency: number;
+}
+
+export interface AdminUserDetail {
+  user: User;
+  counts: AdminActivityCounts;
+  gamification: AdminGamificationSummary;
+  linked_accounts: PublicLinkedAccount[];
+  recent: {
+    wins: AdminRecentWin[];
+    jobs: AdminRecentJob[];
+    certifications: AdminRecentCert[];
+    skills: AdminRecentSkill[];
+  };
 }
 
 export interface AuthProvidersResponse {

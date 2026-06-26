@@ -28,6 +28,7 @@ import type {
   MFAStatus,
   PasskeyInfo,
   CustomDomain,
+  AdminUserDetail,
 } from "@/types";
 
 const api = axios.create({
@@ -340,7 +341,7 @@ export const apiClient = {
     users: {
       list: (params?: Record<string, string | number>) =>
         api.get<{ data: User[]; total: number }>("/admin/users", { params }),
-      getById: (id: string) => api.get<{ data: User }>(`/admin/users/${id}`),
+      getById: (id: string) => api.get<{ data: AdminUserDetail }>(`/admin/users/${id}`),
       delete: (id: string) => api.delete(`/admin/users/${id}`),
       toggleAdmin: (id: string, isAdmin: boolean) =>
         api.patch(`/admin/users/${id}/admin`, { is_admin: isAdmin }),
