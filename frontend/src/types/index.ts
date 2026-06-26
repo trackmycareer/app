@@ -71,11 +71,18 @@ export interface AdminRecentSkill {
   proficiency: number;
 }
 
+export interface AdminCustomDomain {
+  domain: string;
+  status: string;
+  ssl_status: string;
+}
+
 export interface AdminUserDetail {
   user: User;
   counts: AdminActivityCounts;
   gamification: AdminGamificationSummary;
   linked_accounts: PublicLinkedAccount[];
+  custom_domain?: AdminCustomDomain | null;
   recent: {
     wins: AdminRecentWin[];
     jobs: AdminRecentJob[];
