@@ -406,3 +406,34 @@ export interface CustomDomain {
   created_at: string;
   verified_at: string | null;
 }
+
+export type NotificationType =
+  | "cert_expiry_90"
+  | "cert_expiry_30"
+  | "cert_expiry_7"
+  | "cert_expired";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  related_certification_id?: string | null;
+  reminder_for_date?: string | null;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+}
+
+export interface NotificationPreferences {
+  enabled: boolean;
+  remind_90: boolean;
+  remind_30: boolean;
+  remind_7: boolean;
+  channel_email: boolean;
+  channel_in_app: boolean;
+}

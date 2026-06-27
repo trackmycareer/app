@@ -24,6 +24,7 @@ import {
   SunIcon,
   MoonIcon,
   MonitorIcon,
+  BellIcon,
 } from "@/components/icons";
 import { useAppConfig } from "@/hooks/queries/useConfigQuery";
 
@@ -138,6 +139,12 @@ export function Sidebar() {
               to="/achievements"
               icon={<StarIcon width={18} height={18} />}
               label="Achievements"
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/notifications"
+              icon={<BellIcon width={18} height={18} />}
+              label="Notifications"
               onClick={closeSidebar}
             />
           </NavSection>

@@ -14,6 +14,7 @@ export function ToggleSwitch({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={[
           "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent",

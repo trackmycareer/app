@@ -30,6 +30,8 @@ import type {
   PasskeyInfo,
   CustomDomain,
   AdminUserDetail,
+  NotificationListResponse,
+  NotificationPreferences,
 } from "@/types";
 
 const api = axios.create({
@@ -308,6 +310,17 @@ export const apiClient = {
     getPublic: (username: string) => api.get<{ data: PublicProfile }>(`/profiles/${username}`),
     getByDomain: (domain: string) =>
       api.get<{ data: PublicProfile }>(`/profiles/by-domain/${domain}`),
+  },
+  notifications: {
+    list: (params?: Record<string, string | number>) =>
+      api.get<{ data: NotificationListResponse }>("/notifications", { params }),
+    unreadCount: () => api.get<{ data: { unread: number } }>("/notifications/unread-count"),
+    markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+    markAllRead: () => api.post<{ data: { marked_read: number } }>("/notifications/read-all"),
+    getPreferences: () =>
+      api.get<{ data: NotificationPreferences }>("/notifications/preferences"),
+    updatePreferences: (data: Partial<NotificationPreferences>) =>
+      api.put<{ data: NotificationPreferences }>("/notifications/preferences", data),
   },
   customDomain: {
     get: () => api.get<{ data: CustomDomain }>("/custom-domain"),

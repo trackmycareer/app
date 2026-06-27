@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 )
 
@@ -20,6 +21,43 @@ type emailData struct {
 type oauthEmailData struct {
 	Name     string
 	Provider string
+}
+
+// CertReminderData holds the fields needed to render a certification renewal
+// reminder email. ExpiryDate is pre-formatted (e.g. "1 September 2026").
+type CertReminderData struct {
+	CertID        string
+	CertName      string
+	Provider      string
+	ExpiryDate    string
+	DaysRemaining int
+	Expired       bool
+	CredentialURL *string
+}
+
+// certReminderTemplateData is the view model passed to the reminder templates.
+type certReminderTemplateData struct {
+	Name          string
+	CertName      string
+	Provider      string
+	ExpiryDate    string
+	DaysRemaining int
+	Expired       bool
+	Link          string
+	CredentialURL *string
+}
+
+// certReminderSubject builds the email subject for a reminder, with correct
+// singular/plural day wording.
+func certReminderSubject(data CertReminderData) string {
+	if data.Expired {
+		return fmt.Sprintf("Your %s certification has expired", data.CertName)
+	}
+	unit := "days"
+	if data.DaysRemaining == 1 {
+		unit = "day"
+	}
+	return fmt.Sprintf("Your %s certification expires in %d %s", data.CertName, data.DaysRemaining, unit)
 }
 
 func renderTemplate[T any](tmpl *template.Template, data T) (string, error) {
@@ -328,3 +366,73 @@ We received a password reset request for your trackmy.career account.
 Your account uses {{.Provider}} to sign in. No password is needed. Just sign in with {{.Provider}} as usual.
 
 If you didn't request this, you can safely ignore this email.`))
+
+// ── Certification renewal reminder ──────────────────────────────────────────
+
+var certReminderHTMLTmpl = template.Must(template.New("cert_reminder_html").Parse(
+	htmlHead + htmlCardOpen + `
+              {{if .Expired}}
+              <h2 style="margin:0 0 8px;color:#292524;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Your certification has expired</h2>
+              <p style="margin:0 0 24px;color:#78716c;font-size:14px;">Hello {{.Name}},</p>
+              <p style="margin:0 0 28px;color:#57534e;font-size:15px;line-height:1.7;">
+                Your <strong style="color:#292524;">{{.CertName}}</strong>{{if .Provider}} from {{.Provider}}{{end}} certification expired on {{.ExpiryDate}}. Renew it to keep your credentials current and your profile accurate.
+              </p>
+              {{else}}
+              <h2 style="margin:0 0 8px;color:#292524;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Time to renew your certification</h2>
+              <p style="margin:0 0 24px;color:#78716c;font-size:14px;">Hello {{.Name}},</p>
+              <p style="margin:0 0 28px;color:#57534e;font-size:15px;line-height:1.7;">
+                Your <strong style="color:#292524;">{{.CertName}}</strong>{{if .Provider}} from {{.Provider}}{{end}} certification expires on {{.ExpiryDate}}, {{.DaysRemaining}} day{{if ne .DaysRemaining 1}}s{{end}} from now. Plan your renewal so it does not lapse.
+              </p>
+              {{end}}
+              ` + ctaButton("Review certification") + `
+              {{if .CredentialURL}}
+              <p style="margin:0 0 4px;color:#78716c;font-size:13px;text-align:center;">
+                <a href="{{.CredentialURL}}" target="_blank" style="color:#5a7a62;font-weight:600;text-decoration:none;">Renew with {{.Provider}}</a>
+              </p>
+              {{end}}` +
+		htmlCardClose + `
+          <tr>
+            <td style="padding:24px 40px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-top:1px solid #ede7df;padding-top:20px;">
+                    <p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.6;text-align:center;">
+                      You're receiving this because renewal reminders are switched on. You can change this anytime in your settings.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+          <tr>
+            <td style="padding:20px 40px;text-align:center;">
+              <p style="margin:0;color:#a8a29e;font-size:11px;">
+                &copy; trackmy.career
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`))
+
+var certReminderTextTmpl = template.Must(template.New("cert_reminder_text").Parse(
+	`{{if .Expired}}Your {{.CertName}} certification has expired
+
+Hello {{.Name}},
+
+Your {{.CertName}}{{if .Provider}} from {{.Provider}}{{end}} certification expired on {{.ExpiryDate}}. Renew it to keep your credentials current.
+{{else}}Time to renew your {{.CertName}} certification
+
+Hello {{.Name}},
+
+Your {{.CertName}}{{if .Provider}} from {{.Provider}}{{end}} certification expires on {{.ExpiryDate}}, {{.DaysRemaining}} day{{if ne .DaysRemaining 1}}s{{end}} from now. Plan your renewal so it does not lapse.
+{{end}}
+Review your certification: {{.Link}}
+{{if .CredentialURL}}Renew with {{.Provider}}: {{.CredentialURL}}
+{{end}}
+You're receiving this because renewal reminders are switched on. You can change this anytime in your settings.`))

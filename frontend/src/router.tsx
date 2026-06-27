@@ -33,6 +33,7 @@ const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
 const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 const AdminBadges = lazy(() => import("@/pages/admin/AdminBadges"));
 const Achievements = lazy(() => import("@/pages/gamification/Achievements"));
+const NotificationsList = lazy(() => import("@/pages/notifications/NotificationsList"));
 const ProfileSettings = lazy(() => import("@/pages/profile/ProfileSettings"));
 const PublicProfile = lazy(() => import("@/pages/profile/PublicProfile"));
 const Security = lazy(() => import("@/pages/security/Security"));
@@ -279,6 +280,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <Achievements />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "notifications",
+            element: (
+              <SuspenseWrapper>
+                <NotificationsList />
               </SuspenseWrapper>
             ),
           },

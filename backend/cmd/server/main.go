@@ -38,6 +38,7 @@ import (
 	"github.com/trackmycareer/app/internal/mfa/passkey"
 	"github.com/trackmycareer/app/internal/mfa/totp"
 	"github.com/trackmycareer/app/internal/middleware"
+	"github.com/trackmycareer/app/internal/notification"
 	"github.com/trackmycareer/app/internal/passwordreset"
 	"github.com/trackmycareer/app/internal/polar"
 	"github.com/trackmycareer/app/internal/profile"
@@ -125,6 +126,7 @@ func main() {
 	linkedAccountRepo := linkedaccount.NewRepository(pool)
 	customDomainRepo := customdomain.NewRepository(pool)
 	verificationRepo := verification.NewRepository(pool)
+	notificationRepo := notification.NewRepository(pool)
 
 	// Services
 	adminService := admin.NewService(pool)
@@ -140,6 +142,7 @@ func main() {
 	authService := auth.NewService(userRepo, jwtManager)
 	mailService := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.FrontendURL)
 	verificationService := verification.NewService(verificationRepo, userRepo, mailService)
+	notificationService := notification.NewService(notificationRepo, mailService)
 	passwordResetRepo := passwordreset.NewRepository(pool)
 
 	// MFA services
@@ -221,6 +224,7 @@ func main() {
 	applicationHandler := application.NewHandler(applicationService, gamificationService)
 	certHandler := certification.NewHandler(certService, gamificationService)
 	skillHandler := skill.NewHandler(skillService, gamificationService)
+	notificationHandler := notification.NewHandler(notificationService)
 	companyHandler := company.NewHandler(companyService)
 	jobtitleHandler := jobtitle.NewHandler(jobtitleService)
 	locationHandler := location.NewHandler(locationService)
@@ -393,6 +397,14 @@ func main() {
 		verified.POST("/skills/:id/evidence", skillHandler.AddEvidence)
 		verified.DELETE("/skills/:id/evidence/:evidenceId", skillHandler.RemoveEvidence)
 
+		// Notifications (in-app reminder centre + preferences)
+		verified.GET("/notifications", notificationHandler.List)
+		verified.GET("/notifications/unread-count", notificationHandler.UnreadCount)
+		verified.POST("/notifications/read-all", notificationHandler.MarkAllRead)
+		verified.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
+		verified.GET("/notifications/preferences", notificationHandler.GetPreferences)
+		verified.PUT("/notifications/preferences", notificationHandler.UpdatePreferences)
+
 		// Export
 		exportGroup := verified.Group("/export")
 		{
@@ -494,6 +506,9 @@ func main() {
 
 	// Start DNS re-verification background task.
 	linkedaccount.StartReverification(ctx, linkedAccountRepo)
+
+	// Start the certification renewal reminder engine.
+	notification.StartReminderScheduler(ctx, notificationService)
 
 	// Graceful shutdown
 	srv := &http.Server{

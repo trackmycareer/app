@@ -9,7 +9,15 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"strings"
 )
+
+// sanitiseHeader removes CR and LF so that user-derived values (for example a
+// certification name in the subject) cannot inject additional SMTP headers
+// (CWE-93).
+func sanitiseHeader(v string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(v)
+}
 
 // Mailer defines the interface for sending transactional emails.
 type Mailer interface {
@@ -17,6 +25,7 @@ type Mailer interface {
 	SendEmailChangeConfirmation(to, name, token string) error
 	SendPasswordResetEmail(to, name, token string) error
 	SendOAuthResetNotification(to, name, provider string) error
+	SendCertificationReminder(to, name string, data CertReminderData) error
 }
 
 // SMTPMailer sends emails via an SMTP server with STARTTLS.
@@ -132,6 +141,33 @@ func (m *SMTPMailer) SendOAuthResetNotification(to, name, provider string) error
 	return m.send(to, oauthResetSubject, htmlBody, textBody)
 }
 
+// SendCertificationReminder sends a renewal reminder for a certification that
+// is expiring soon or has expired.
+func (m *SMTPMailer) SendCertificationReminder(to, name string, data CertReminderData) error {
+	td := certReminderTemplateData{
+		Name:          name,
+		CertName:      data.CertName,
+		Provider:      data.Provider,
+		ExpiryDate:    data.ExpiryDate,
+		DaysRemaining: data.DaysRemaining,
+		Expired:       data.Expired,
+		Link:          fmt.Sprintf("%s/certifications/%s/edit", m.frontendURL, data.CertID),
+		CredentialURL: data.CredentialURL,
+	}
+
+	htmlBody, err := renderTemplate(certReminderHTMLTmpl, td)
+	if err != nil {
+		return fmt.Errorf("rendering certification reminder HTML: %w", err)
+	}
+
+	textBody, err := renderTemplate(certReminderTextTmpl, td)
+	if err != nil {
+		return fmt.Errorf("rendering certification reminder text: %w", err)
+	}
+
+	return m.send(to, certReminderSubject(data), htmlBody, textBody)
+}
+
 // send builds a multipart/alternative MIME message and delivers it via SMTP with STARTTLS.
 func (m *SMTPMailer) send(to, subject, htmlBody, textBody string) error {
 	addr := net.JoinHostPort(m.host, m.port)
@@ -140,9 +176,9 @@ func (m *SMTPMailer) send(to, subject, htmlBody, textBody string) error {
 	boundary := "----=_Part_trackmy_career_boundary"
 
 	var msg bytes.Buffer
-	fmt.Fprintf(&msg, "From: %s\r\n", m.from)
-	fmt.Fprintf(&msg, "To: %s\r\n", to)
-	fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
+	fmt.Fprintf(&msg, "From: %s\r\n", sanitiseHeader(m.from))
+	fmt.Fprintf(&msg, "To: %s\r\n", sanitiseHeader(to))
+	fmt.Fprintf(&msg, "Subject: %s\r\n", sanitiseHeader(subject))
 	msg.WriteString("MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary)
 	msg.WriteString("\r\n")
@@ -280,6 +316,19 @@ func (m *NoopMailer) SendEmailChangeConfirmation(to, name, token string) error {
 		"subject", emailChangeSubject,
 		"name", name,
 		"link", link,
+	)
+	return nil
+}
+
+// SendCertificationReminder logs the certification reminder details.
+func (m *NoopMailer) SendCertificationReminder(to, name string, data CertReminderData) error {
+	slog.Info("noop mailer: certification reminder",
+		"to", to,
+		"subject", certReminderSubject(data),
+		"name", name,
+		"cert", data.CertName,
+		"days_remaining", data.DaysRemaining,
+		"expired", data.Expired,
 	)
 	return nil
 }

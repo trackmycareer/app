@@ -10,6 +10,7 @@ import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { Select } from "@/components/Select";
 import { Modal } from "@/components/Modal";
 import { ToggleSwitch } from "@/components/ToggleSwitch";
+import { ReminderPreferences } from "@/components/ReminderPreferences";
 import { SpinnerIcon, LinkIcon, VerifiedBadgeIcon, ExternalLinkIcon } from "@/components/icons";
 import { useProfileSettings, useUpdateProfileMutation } from "@/hooks/queries/useProfileQuery";
 import {
@@ -1374,6 +1375,9 @@ export default function ProfileSettings() {
             You can change this at any time. We will never share your email with third parties.
           </p>
         </section>
+
+        {/* Renewal reminders */}
+        <ReminderPreferences />
 
         {/* Danger zone */}
         <section

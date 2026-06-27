@@ -1,5 +1,6 @@
 import { useUIStore } from "@/stores/ui";
 import { MenuIcon } from "@/components/icons";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface TopbarProps {
   title?: string;
@@ -26,6 +27,9 @@ export function Topbar({ title }: TopbarProps) {
           {title}
         </h1>
       )}
+      <div className="ml-auto">
+        <NotificationBell />
+      </div>
     </header>
   );
 }
