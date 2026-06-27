@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/trackmycareer/app/internal/legal"
 	"github.com/trackmycareer/app/internal/password"
 	"github.com/trackmycareer/app/internal/user"
 )
@@ -24,9 +26,10 @@ func NewService(userRepo *user.Repository, jwtManager *JWTManager) *Service {
 }
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email,max=255"`
-	Password string `json:"password" binding:"required,min=8,max=128"`
-	Name     string `json:"name" binding:"required,max=255"`
+	Email       string `json:"email" binding:"required,email,max=255"`
+	Password    string `json:"password" binding:"required,min=8,max=128"`
+	Name        string `json:"name" binding:"required,max=255"`
+	AcceptTerms bool   `json:"accept_terms"`
 }
 
 type LoginRequest struct {
@@ -54,12 +57,16 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (RegisterRe
 		return RegisterResult{}, fmt.Errorf("hashing password: %w", err)
 	}
 
+	now := time.Now()
+	ver := legal.Version
 	u := &user.User{
-		ID:           uuid.New(),
-		Email:        req.Email,
-		PasswordHash: hash,
-		Name:         req.Name,
-		Provider:     "email",
+		ID:              uuid.New(),
+		Email:           req.Email,
+		PasswordHash:    hash,
+		Name:            req.Name,
+		Provider:        "email",
+		TermsAcceptedAt: &now,
+		TermsVersion:    &ver,
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {

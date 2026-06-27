@@ -20,7 +20,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-const userColumns = `id, email, password_hash, name, avatar_url, provider, provider_id, is_admin, username, bio, location, headline, open_to_work, profile_visibility, email_verified, email_verified_at, newsletter_opt_in, newsletter_opt_in_at, is_one_time_supporter, is_subscriber, supporter_since, polar_customer_id, mfa_enabled, token_version, created_at, updated_at`
+const userColumns = `id, email, password_hash, name, avatar_url, provider, provider_id, is_admin, username, bio, location, headline, open_to_work, profile_visibility, email_verified, email_verified_at, newsletter_opt_in, newsletter_opt_in_at, is_one_time_supporter, is_subscriber, supporter_since, polar_customer_id, mfa_enabled, token_version, terms_accepted_at, terms_version, created_at, updated_at`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
@@ -34,6 +34,7 @@ func scanUser(row pgx.Row) (User, error) {
 		&u.NewsletterOptIn, &u.NewsletterOptInAt,
 		&u.IsOneTimeSupporter, &u.IsSubscriber, &u.SupporterSince, &u.PolarCustomerID,
 		&u.MFAEnabled, &u.TokenVersion,
+		&u.TermsAcceptedAt, &u.TermsVersion,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	return u, err
@@ -41,13 +42,13 @@ func scanUser(row pgx.Row) (User, error) {
 
 func (r *Repository) Create(ctx context.Context, u *User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, name, avatar_url, provider, provider_id, username, bio, email_verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO users (id, email, password_hash, name, avatar_url, provider, provider_id, username, bio, email_verified, terms_accepted_at, terms_version)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING is_admin, created_at, updated_at`
 
 	return r.pool.QueryRow(ctx, query,
 		u.ID, u.Email, u.PasswordHash, u.Name, u.AvatarURL, u.Provider, u.ProviderID,
-		u.Username, u.Bio, u.EmailVerified,
+		u.Username, u.Bio, u.EmailVerified, u.TermsAcceptedAt, u.TermsVersion,
 	).Scan(&u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
 }
 
@@ -185,6 +186,7 @@ func (r *Repository) List(ctx context.Context, search string, limit, offset int)
 			&u.NewsletterOptIn, &u.NewsletterOptInAt,
 			&u.IsOneTimeSupporter, &u.IsSubscriber, &u.SupporterSince, &u.PolarCustomerID,
 			&u.MFAEnabled, &u.TokenVersion,
+			&u.TermsAcceptedAt, &u.TermsVersion,
 			&u.CreatedAt, &u.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scanning user: %w", err)
@@ -205,6 +207,13 @@ func (r *Repository) SetEmailVerified(ctx context.Context, userID uuid.UUID) err
 	_, err := r.pool.Exec(ctx,
 		`UPDATE users SET email_verified = TRUE, email_verified_at = NOW(), updated_at = NOW() WHERE id = $1`,
 		userID)
+	return err
+}
+
+func (r *Repository) AcceptTerms(ctx context.Context, userID uuid.UUID, version string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET terms_accepted_at = NOW(), terms_version = $2, updated_at = NOW() WHERE id = $1`,
+		userID, version)
 	return err
 }
 

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Outlet } from "react-router";
 import { Sidebar } from "@/components/Sidebar";
+import { PublicFooter } from "@/components/PublicFooter";
+import { TermsConsentGate } from "@/components/TermsConsentGate";
 import { useUIStore } from "@/stores/ui";
 
 export default function App() {
@@ -38,15 +40,9 @@ export default function App() {
         <main id="main-content">
           <Outlet />
         </main>
-        <footer className="mt-auto border-t border-[var(--border-subtle)] px-4 py-4 text-center text-xs text-[var(--text-tertiary)]">
-          <p>&copy; 2026 BH Cloud Labs Ltd. All rights reserved.</p>
-          <p className="mt-1">
-            BH Cloud Labs Ltd, trading as trackmy.career is registered in England and Wales (No.
-            16211348).
-          </p>
-          <p>Registered Address: The Grange, Grange Road, Great Malvern. WR14 3HA.</p>
-        </footer>
+        <PublicFooter className="mt-auto" />
       </div>
+      <TermsConsentGate />
     </div>
   );
 }

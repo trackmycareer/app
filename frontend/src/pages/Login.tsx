@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
+import { LEGAL_URLS } from "@/lib/constants";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { MFAChallenge } from "@/components/MFAChallenge";
@@ -185,6 +186,21 @@ export default function Login() {
             </Button>
           )}
         </div>
+
+        {/* OAuth consent notice (first-time OAuth sign-in creates an account) */}
+        {providers.length > 0 && (
+          <p className="text-center text-xs text-[var(--text-tertiary)]">
+            By continuing with GitHub or Google you agree to our{" "}
+            <a href={LEGAL_URLS.terms} className="underline hover:text-[var(--text-secondary)]">
+              Terms
+            </a>{" "}
+            and{" "}
+            <a href={LEGAL_URLS.privacy} className="underline hover:text-[var(--text-secondary)]">
+              Privacy Policy
+            </a>
+            .
+          </p>
+        )}
 
         {/* Divider */}
         {providers.length > 0 && (

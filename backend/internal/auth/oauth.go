@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	oauthgithub "golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 
+	"github.com/trackmycareer/app/internal/legal"
 	"github.com/trackmycareer/app/internal/settings"
 	"github.com/trackmycareer/app/internal/user"
 )
@@ -250,17 +252,23 @@ func (m *OAuthManager) upsertUser(ctx context.Context, providerName string, oUse
 		return nil, fmt.Errorf("registration is currently disabled")
 	}
 
-	// Create new user (OAuth users are auto-verified via provider)
+	// Create new user (OAuth users are auto-verified via provider). Continuing
+	// through an OAuth sign-up constitutes acceptance of the Terms of Service and
+	// Privacy Policy, presented as a notice beside the OAuth buttons.
 	avatarURL := oUser.AvatarURL
 	providerID := oUser.ID
+	now := time.Now()
+	ver := legal.Version
 	u := &user.User{
-		ID:            uuid.New(),
-		Email:         oUser.Email,
-		Name:          oUser.Name,
-		AvatarURL:     &avatarURL,
-		Provider:      providerName,
-		ProviderID:    &providerID,
-		EmailVerified: true,
+		ID:              uuid.New(),
+		Email:           oUser.Email,
+		Name:            oUser.Name,
+		AvatarURL:       &avatarURL,
+		Provider:        providerName,
+		ProviderID:      &providerID,
+		EmailVerified:   true,
+		TermsAcceptedAt: &now,
+		TermsVersion:    &ver,
 	}
 
 	if err := m.userRepo.Create(ctx, u); err != nil {

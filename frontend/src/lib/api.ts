@@ -141,7 +141,7 @@ export const apiClient = {
     getPortalUrl: () => api.get<{ data: { portal_url: string } }>("/support/portal"),
   },
   auth: {
-    register: (data: { email: string; password: string; name: string }) =>
+    register: (data: { email: string; password: string; name: string; accept_terms: boolean }) =>
       api.post<{ data: { access_token: string } }>("/auth/register", data),
     login: (data: { email: string; password: string }) =>
       api.post<{ data: { access_token: string } }>("/auth/login", data),
@@ -187,6 +187,7 @@ export const apiClient = {
       api.post("/user/me/delete", data),
     updateNewsletter: (data: { opt_in: boolean }) =>
       api.put<{ data: User }>("/user/me/newsletter", data),
+    acceptTerms: () => api.post<{ data: User }>("/user/me/accept-terms"),
   },
   mfa: {
     getStatus: () => api.get<{ data: MFAStatus }>("/user/me/mfa/status"),

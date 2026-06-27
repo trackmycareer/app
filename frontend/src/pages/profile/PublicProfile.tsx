@@ -1,5 +1,6 @@
 import { useParams } from "react-router";
 import { usePublicProfile } from "@/hooks/queries/useProfileQuery";
+import { LEGAL_URLS } from "@/lib/constants";
 import { BadgeCard } from "@/components/BadgeCard";
 import { SpinnerIcon, BriefcaseIcon, AwardIcon, ZapIcon, TrophyIcon, HeartIcon, ShieldIcon } from "@/components/icons";
 import { ProfileSection } from "./components/ProfileSection";
@@ -327,6 +328,32 @@ export default function PublicProfile() {
           >
             trackmy<span className="text-[var(--accent-default)]">.</span>career
           </a>
+          <nav
+            aria-label="Legal"
+            className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs
+              text-[var(--text-tertiary)]"
+          >
+            <a
+              href={LEGAL_URLS.privacy}
+              className="transition-colors hover:text-[var(--accent-default)]"
+            >
+              Privacy
+            </a>
+            <span aria-hidden="true">&middot;</span>
+            <a
+              href={LEGAL_URLS.terms}
+              className="transition-colors hover:text-[var(--accent-default)]"
+            >
+              Terms
+            </a>
+            <span aria-hidden="true">&middot;</span>
+            <a
+              href={LEGAL_URLS.cookies}
+              className="transition-colors hover:text-[var(--accent-default)]"
+            >
+              Cookies
+            </a>
+          </nav>
         </footer>
       </div>
     </div>

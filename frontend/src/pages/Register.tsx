@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth";
 import { apiClient } from "@/lib/api";
+import { LEGAL_URLS } from "@/lib/constants";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
 import { GithubIcon, GoogleIcon, BriefcaseIcon } from "@/components/icons";
@@ -19,6 +20,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
   const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
 
@@ -57,10 +59,20 @@ export default function Register() {
       return;
     }
 
+    if (!acceptTerms) {
+      setError("Please accept the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const registerRes = await apiClient.auth.register({ email, password, name });
+      const registerRes = await apiClient.auth.register({
+        email,
+        password,
+        name,
+        accept_terms: acceptTerms,
+      });
       const token = registerRes.data.data.access_token;
 
       useAuthStore.getState().setAccessToken(token);
@@ -145,6 +157,21 @@ export default function Register() {
           )}
         </div>
 
+        {/* OAuth consent notice */}
+        {providers.length > 0 && (
+          <p className="text-center text-xs text-[var(--text-tertiary)]">
+            By continuing with GitHub or Google you agree to our{" "}
+            <a href={LEGAL_URLS.terms} className="underline hover:text-[var(--text-secondary)]">
+              Terms
+            </a>{" "}
+            and{" "}
+            <a href={LEGAL_URLS.privacy} className="underline hover:text-[var(--text-secondary)]">
+              Privacy Policy
+            </a>
+            .
+          </p>
+        )}
+
         {/* Divider */}
         {providers.length > 0 && (
           <div className="flex items-center gap-3">
@@ -203,6 +230,44 @@ export default function Register() {
             required
             autoComplete="new-password"
           />
+          {/* The checkbox carries its own label; the visible sentence is a separate
+              description so the Terms/Privacy links are not nested inside a label. */}
+          <div className="flex items-start gap-2 py-1">
+            <input
+              id="accept-terms"
+              type="checkbox"
+              required
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
+              aria-describedby="accept-terms-desc"
+              className="mt-0.5 h-4 w-4 rounded border-[var(--border-default)]
+                text-[var(--accent-default)] focus:ring-[var(--accent-default)]"
+            />
+            <label htmlFor="accept-terms" className="sr-only">
+              I agree to the Terms of Service and Privacy Policy
+            </label>
+            <p id="accept-terms-desc" className="text-sm text-[var(--text-secondary)]">
+              I agree to the{" "}
+              <a
+                href={LEGAL_URLS.terms}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[var(--accent-text)] underline hover:text-[var(--accent-bright)]"
+              >
+                Terms of Service<span className="sr-only"> (opens in a new tab)</span>
+              </a>{" "}
+              and{" "}
+              <a
+                href={LEGAL_URLS.privacy}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[var(--accent-text)] underline hover:text-[var(--accent-bright)]"
+              >
+                Privacy Policy<span className="sr-only"> (opens in a new tab)</span>
+              </a>
+              .
+            </p>
+          </div>
           <label className="flex cursor-pointer items-center gap-2 py-1">
             <input
               type="checkbox"

@@ -58,6 +58,11 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	if !req.AcceptTerms {
+		response.BadRequest(c, "you must accept the Terms of Service and Privacy Policy")
+		return
+	}
+
 	result, err := h.service.Register(c.Request.Context(), req)
 	if err != nil {
 		response.BadRequest(c, "could not create account")

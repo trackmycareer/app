@@ -319,6 +319,7 @@ func main() {
 	{
 		// These routes must work for unverified users
 		protected.GET("/user/me", userHandler.GetMe)
+		protected.POST("/user/me/accept-terms", userHandler.AcceptTerms)
 		protected.POST("/auth/logout", authHandler.Logout)
 		protected.POST("/auth/verify-email/send", verificationHandler.SendVerification)
 	}

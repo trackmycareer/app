@@ -18,6 +18,8 @@ export interface User {
   is_one_time_supporter: boolean;
   is_subscriber: boolean;
   supporter_since: string | null;
+  terms_accepted_at?: string | null;
+  terms_version?: string | null;
   created_at: string;
   updated_at: string;
 }

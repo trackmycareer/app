@@ -32,6 +32,8 @@ type User struct {
 	PolarCustomerID    *string         `json:"-"`
 	MFAEnabled         bool            `json:"mfa_enabled"`
 	TokenVersion       int             `json:"-"`
+	TermsAcceptedAt    *time.Time      `json:"terms_accepted_at,omitempty"`
+	TermsVersion       *string         `json:"terms_version,omitempty"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
 }

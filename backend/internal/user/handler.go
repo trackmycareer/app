@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trackmycareer/app/internal/legal"
 	"github.com/trackmycareer/app/internal/password"
 	"github.com/trackmycareer/app/internal/storage"
 	"github.com/trackmycareer/app/pkg/response"
@@ -321,6 +322,27 @@ func (h *Handler) UpdateNewsletter(c *gin.Context) {
 	}
 
 	if err := h.repo.UpdateNewsletterOptIn(c.Request.Context(), userID, req.OptIn); err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
+	u, err := h.repo.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c, err)
+		return
+	}
+
+	response.OK(c, u)
+}
+
+// AcceptTerms records the current user's acceptance of the Terms of Service and
+// Privacy Policy at the current published version. It takes no request body:
+// acceptance is implied by calling the endpoint from the consent prompt. The
+// updated user is returned so the client can clear the prompt.
+func (h *Handler) AcceptTerms(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	if err := h.repo.AcceptTerms(c.Request.Context(), userID, legal.Version); err != nil {
 		response.InternalError(c, err)
 		return
 	}
