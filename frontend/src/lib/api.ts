@@ -9,6 +9,7 @@ import type {
   Win,
   Tag,
   Job,
+  Application,
   Certification,
   Skill,
   Badge,
@@ -235,6 +236,16 @@ export const apiClient = {
     getById: (id: string) => api.get<{ data: Job }>(`/jobs/${id}`),
     update: (id: string, data: Partial<Job>) => api.put<{ data: Job }>(`/jobs/${id}`, data),
     delete: (id: string) => api.delete(`/jobs/${id}`),
+  },
+  applications: {
+    list: () => api.get<{ data: Application[] }>("/applications"),
+    create: (data: Partial<Application>) => api.post<{ data: Application }>("/applications", data),
+    getById: (id: string) => api.get<{ data: Application }>(`/applications/${id}`),
+    update: (id: string, data: Partial<Application>) =>
+      api.put<{ data: Application }>(`/applications/${id}`, data),
+    move: (id: string, data: { status: string; ordered_ids?: string[] }) =>
+      api.patch<{ data: Application }>(`/applications/${id}/move`, data),
+    delete: (id: string) => api.delete(`/applications/${id}`),
   },
   companies: {
     search: (q: string) =>

@@ -132,6 +132,33 @@ export interface Job {
   updated_at: string;
 }
 
+export type ApplicationStatus =
+  | "wishlist"
+  | "applied"
+  | "screen"
+  | "interview"
+  | "offer"
+  | "accepted"
+  | "rejected";
+
+export interface Application {
+  id: string;
+  user_id: string;
+  company: string;
+  title: string;
+  status: ApplicationStatus;
+  location: string | null;
+  work_mode: string | null;
+  job_url: string | null;
+  source: string | null;
+  salary: string | null;
+  applied_date: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Certification {
   id: string;
   user_id: string;

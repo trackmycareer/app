@@ -8,6 +8,7 @@ import {
   BriefcaseIcon,
   TrophyIcon,
   BuildingIcon,
+  ClipboardListIcon,
   AwardIcon,
   ZapIcon,
   UploadIcon,
@@ -113,6 +114,12 @@ export function Sidebar() {
               to="/jobs"
               icon={<BuildingIcon width={18} height={18} />}
               label="Jobs"
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/applications"
+              icon={<ClipboardListIcon width={18} height={18} />}
+              label="Applications"
               onClick={closeSidebar}
             />
             <NavItem
