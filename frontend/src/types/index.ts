@@ -134,6 +134,29 @@ export interface Job {
   updated_at: string;
 }
 
+export type PayBasis = "annual" | "monthly" | "weekly" | "daily" | "hourly" | "one_off";
+
+// Amounts are integers in minor units (for example pennies), matching the
+// backend, so totals stay exact. Convert to/from major units at the UI edge.
+export interface CompensationAmounts {
+  base: number;
+  bonus: number;
+  equity: number;
+  other: number;
+  note?: string | null;
+}
+
+export interface Compensation {
+  id: string;
+  job_id: string;
+  effective_date: string;
+  currency: string;
+  pay_basis: PayBasis;
+  amounts: CompensationAmounts;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ApplicationStatus =
   | "wishlist"
   | "applied"

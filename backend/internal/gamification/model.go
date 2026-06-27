@@ -131,6 +131,7 @@ var ActionPoints = map[string]int{
 	"badge_earned":         50,
 	"application_created":  5,
 	"application_accepted": 25,
+	"compensation_logged":  10,
 }
 
 // LevelForPoints returns the level and title for a given point total.

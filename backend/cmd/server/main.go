@@ -20,6 +20,7 @@ import (
 	"github.com/trackmycareer/app/internal/certification"
 	"github.com/trackmycareer/app/internal/cloudflare"
 	"github.com/trackmycareer/app/internal/company"
+	"github.com/trackmycareer/app/internal/compensation"
 	"github.com/trackmycareer/app/internal/config"
 	"github.com/trackmycareer/app/internal/customdomain"
 	"github.com/trackmycareer/app/internal/database"
@@ -85,6 +86,21 @@ func main() {
 		}
 	}
 
+	// Compensation encryption key (separate from the MFA key)
+	var compensationEncryptor *mfacrypto.Encryptor
+	compKey, err := cfg.CompensationKeyBytes()
+	if err != nil {
+		if cfg.Env == "production" {
+			log.Fatalf("COMPENSATION_ENCRYPTION_KEY: %v", err)
+		}
+		slog.Warn("compensation history unavailable", "reason", err.Error())
+	} else {
+		compensationEncryptor, err = mfacrypto.NewEncryptor(compKey)
+		if err != nil {
+			log.Fatalf("initialising compensation encryptor: %v", err)
+		}
+	}
+
 	logger.Init(cfg.Env)
 
 	storageClient, err := storage.New(
@@ -127,10 +143,11 @@ func main() {
 	customDomainRepo := customdomain.NewRepository(pool)
 	verificationRepo := verification.NewRepository(pool)
 	notificationRepo := notification.NewRepository(pool)
+	compensationRepo := compensation.NewRepository(pool)
 
 	// Services
 	adminService := admin.NewService(pool)
-	exportService := export.NewService(pool)
+	exportService := export.NewService(pool, compensationEncryptor)
 	gamificationService := gamification.NewService(gamificationRepo)
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret)
 	oauthManager := auth.NewOAuthManager(
@@ -168,6 +185,14 @@ func main() {
 
 		mfaService = mfa.NewService(totpService, passkeyService, backupService, userRepo)
 		mfaHandler = mfa.NewHandler(mfaService, userRepo)
+	}
+
+	// Compensation is encrypted at rest with its own AES key, so it is only
+	// available when that key is configured (always true in production).
+	var compensationHandler *compensation.Handler
+	if compensationEncryptor != nil {
+		compensationService := compensation.NewService(compensationRepo, compensationEncryptor)
+		compensationHandler = compensation.NewHandler(compensationService, gamificationService)
 	}
 
 	// Password reset service (after MFA so we can wire MFA verification)
@@ -369,6 +394,15 @@ func main() {
 		verified.PUT("/applications/:id", applicationHandler.Update)
 		verified.PATCH("/applications/:id/move", applicationHandler.Move)
 		verified.DELETE("/applications/:id", applicationHandler.Delete)
+
+		// Compensation (private, encrypted at rest; gated on the encryption key)
+		if compensationHandler != nil {
+			verified.GET("/compensation", compensationHandler.List)
+			verified.POST("/compensation", compensationHandler.Create)
+			verified.GET("/compensation/:id", compensationHandler.Get)
+			verified.PUT("/compensation/:id", compensationHandler.Update)
+			verified.DELETE("/compensation/:id", compensationHandler.Delete)
+		}
 
 		// Autocomplete search endpoints (rate-limited: 10 req/s per user, burst 20)
 		searchGroup := verified.Group("")

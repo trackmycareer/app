@@ -9,6 +9,7 @@ import type {
   Win,
   Tag,
   Job,
+  Compensation,
   Application,
   Certification,
   Skill,
@@ -239,6 +240,15 @@ export const apiClient = {
     getById: (id: string) => api.get<{ data: Job }>(`/jobs/${id}`),
     update: (id: string, data: Partial<Job>) => api.put<{ data: Job }>(`/jobs/${id}`, data),
     delete: (id: string) => api.delete(`/jobs/${id}`),
+  },
+  compensation: {
+    list: () => api.get<{ data: Compensation[] }>("/compensation"),
+    create: (data: Partial<Compensation>) =>
+      api.post<{ data: Compensation }>("/compensation", data),
+    getById: (id: string) => api.get<{ data: Compensation }>(`/compensation/${id}`),
+    update: (id: string, data: Partial<Compensation>) =>
+      api.put<{ data: Compensation }>(`/compensation/${id}`, data),
+    delete: (id: string) => api.delete(`/compensation/${id}`),
   },
   applications: {
     list: () => api.get<{ data: Application[] }>("/applications"),

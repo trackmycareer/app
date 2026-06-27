@@ -9,11 +9,11 @@ import (
 )
 
 type Config struct {
-	Env             string `env:"ENV"               envDefault:"development"`
-	Port            string `env:"PORT"              envDefault:"8080"`
-	DatabaseURL     string `env:"DATABASE_URL,required"`
-	JWTSecret       string `env:"JWT_SECRET,required"`
-	AllowedOrigins  string `env:"ALLOWED_ORIGINS"   envDefault:"http://localhost:5173"`
+	Env            string `env:"ENV"               envDefault:"development"`
+	Port           string `env:"PORT"              envDefault:"8080"`
+	DatabaseURL    string `env:"DATABASE_URL,required"`
+	JWTSecret      string `env:"JWT_SECRET,required"`
+	AllowedOrigins string `env:"ALLOWED_ORIGINS"   envDefault:"http://localhost:5173"`
 
 	// OAuth - Google
 	OAuthGoogleClientID     string `env:"OAUTH_GOOGLE_CLIENT_ID"`
@@ -63,6 +63,10 @@ type Config struct {
 	// MFA encryption key (base64-encoded 32-byte key for AES-256-GCM)
 	MFAEncryptionKey string `env:"MFA_ENCRYPTION_KEY"`
 
+	// Compensation encryption key (base64-encoded 32-byte key for AES-256-GCM),
+	// kept separate from the MFA key so the two data stores have distinct keys.
+	CompensationEncryptionKey string `env:"COMPENSATION_ENCRYPTION_KEY"`
+
 	// Polar supporter integration (optional — leave blank to disable)
 	PolarAccessToken           string `env:"POLAR_ACCESS_TOKEN"`
 	PolarWebhookSecret         string `env:"POLAR_WEBHOOK_SECRET"`
@@ -86,6 +90,20 @@ func (c Config) MFAKeyBytes() ([]byte, error) {
 	}
 	if len(key) != 32 {
 		return nil, fmt.Errorf("MFA_ENCRYPTION_KEY must decode to exactly 32 bytes, got %d", len(key))
+	}
+	return key, nil
+}
+
+func (c Config) CompensationKeyBytes() ([]byte, error) {
+	if c.CompensationEncryptionKey == "" {
+		return nil, fmt.Errorf("COMPENSATION_ENCRYPTION_KEY is not set")
+	}
+	key, err := base64.StdEncoding.DecodeString(c.CompensationEncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("decoding COMPENSATION_ENCRYPTION_KEY: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("COMPENSATION_ENCRYPTION_KEY must decode to exactly 32 bytes, got %d", len(key))
 	}
 	return key, nil
 }

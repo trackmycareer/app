@@ -25,6 +25,7 @@ import {
   MoonIcon,
   MonitorIcon,
   BellIcon,
+  WalletIcon,
 } from "@/components/icons";
 import { useAppConfig } from "@/hooks/queries/useConfigQuery";
 
@@ -115,6 +116,12 @@ export function Sidebar() {
               to="/jobs"
               icon={<BuildingIcon width={18} height={18} />}
               label="Jobs"
+              onClick={closeSidebar}
+            />
+            <NavItem
+              to="/compensation"
+              icon={<WalletIcon width={18} height={18} />}
+              label="Compensation"
               onClick={closeSidebar}
             />
             <NavItem

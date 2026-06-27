@@ -2,6 +2,7 @@ package export
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/trackmycareer/app/internal/mfa/crypto"
 	"github.com/trackmycareer/app/pkg/types"
 )
 
@@ -21,6 +23,7 @@ type ExportData struct {
 	Certifications []exportCert  `json:"certifications"`
 	Skills         []exportSkill `json:"skills"`
 	Tags           []exportTag   `json:"tags"`
+	Compensation   []exportComp  `json:"compensation"`
 }
 
 type exportUser struct {
@@ -69,14 +72,33 @@ type exportSkill struct {
 	Notes       *string `json:"notes,omitempty"`
 }
 
-// Service provides data export operations.
-type Service struct {
-	pool *pgxpool.Pool
+// exportComp is a compensation entry in the JSON export. Amounts are in minor
+// units (for example pennies). This appears only in the JSON export, never in the
+// Markdown CV, which is the artefact users commonly share.
+type exportComp struct {
+	Company       string     `json:"company"`
+	Title         string     `json:"title"`
+	EffectiveDate types.Date `json:"effective_date"`
+	Currency      string     `json:"currency"`
+	PayBasis      string     `json:"pay_basis"`
+	Base          int64      `json:"base"`
+	Bonus         int64      `json:"bonus"`
+	Equity        int64      `json:"equity"`
+	Other         int64      `json:"other"`
+	Note          *string    `json:"note,omitempty"`
 }
 
-// NewService creates a new export service.
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool}
+// Service provides data export operations.
+type Service struct {
+	pool      *pgxpool.Pool
+	encryptor *crypto.Encryptor
+}
+
+// NewService creates a new export service. The encryptor decrypts compensation
+// amounts for the JSON export and may be nil, in which case compensation is
+// omitted (compensation is gated on the same key as MFA).
+func NewService(pool *pgxpool.Pool, encryptor *crypto.Encryptor) *Service {
+	return &Service{pool: pool, encryptor: encryptor}
 }
 
 // ExportJSON fetches all user data and returns it as a structured export.
@@ -245,6 +267,49 @@ func (s *Service) ExportJSON(ctx context.Context, userID uuid.UUID) (ExportData,
 	}
 	if err := skillRows.Err(); err != nil {
 		return ExportData{}, fmt.Errorf("iterating skills: %w", err)
+	}
+
+	// Fetch compensation. This is decrypted here for the user's own JSON export
+	// and is deliberately never written to the Markdown CV. When no encryptor is
+	// configured the feature is disabled, so the slice stays empty.
+	data.Compensation = []exportComp{}
+	if s.encryptor != nil {
+		compRows, err := s.pool.Query(ctx,
+			`SELECT j.company, j.title, c.effective_date, c.currency, c.pay_basis, c.encrypted_data, c.nonce
+			FROM compensation c
+			JOIN jobs j ON j.id = c.job_id
+			WHERE c.user_id = $1
+			ORDER BY c.effective_date DESC`, userID)
+		if err != nil {
+			return ExportData{}, fmt.Errorf("fetching compensation for export: %w", err)
+		}
+		defer compRows.Close()
+
+		for compRows.Next() {
+			var (
+				ce            exportComp
+				encryptedData []byte
+				nonce         []byte
+			)
+			if err := compRows.Scan(&ce.Company, &ce.Title, &ce.EffectiveDate,
+				&ce.Currency, &ce.PayBasis, &encryptedData, &nonce); err != nil {
+				return ExportData{}, fmt.Errorf("scanning compensation: %w", err)
+			}
+			plaintext, err := s.encryptor.Decrypt(encryptedData, nonce)
+			if err != nil {
+				return ExportData{}, fmt.Errorf("decrypting compensation: %w", err)
+			}
+			// The blob's keys (base, bonus, equity, other, note) line up with
+			// exportComp's tags, so unmarshalling fills only the amount fields and
+			// leaves the columns scanned above untouched.
+			if err := json.Unmarshal(plaintext, &ce); err != nil {
+				return ExportData{}, fmt.Errorf("unmarshalling compensation amounts: %w", err)
+			}
+			data.Compensation = append(data.Compensation, ce)
+		}
+		if err := compRows.Err(); err != nil {
+			return ExportData{}, fmt.Errorf("iterating compensation: %w", err)
+		}
 	}
 
 	return data, nil
