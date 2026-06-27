@@ -15,17 +15,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trackmycareer/app/internal/admin"
+	"github.com/trackmycareer/app/internal/application"
 	"github.com/trackmycareer/app/internal/auth"
-	"github.com/trackmycareer/app/internal/cloudflare"
-	"github.com/trackmycareer/app/internal/customdomain"
-	"github.com/trackmycareer/app/internal/mfa"
-	"github.com/trackmycareer/app/internal/mfa/backup"
-	mfacrypto "github.com/trackmycareer/app/internal/mfa/crypto"
-	"github.com/trackmycareer/app/internal/mfa/passkey"
-	"github.com/trackmycareer/app/internal/mfa/totp"
 	"github.com/trackmycareer/app/internal/certification"
+	"github.com/trackmycareer/app/internal/cloudflare"
 	"github.com/trackmycareer/app/internal/company"
 	"github.com/trackmycareer/app/internal/config"
+	"github.com/trackmycareer/app/internal/customdomain"
 	"github.com/trackmycareer/app/internal/database"
 	"github.com/trackmycareer/app/internal/export"
 	"github.com/trackmycareer/app/internal/gamification"
@@ -36,6 +32,11 @@ import (
 	"github.com/trackmycareer/app/internal/location"
 	"github.com/trackmycareer/app/internal/logger"
 	"github.com/trackmycareer/app/internal/mailer"
+	"github.com/trackmycareer/app/internal/mfa"
+	"github.com/trackmycareer/app/internal/mfa/backup"
+	mfacrypto "github.com/trackmycareer/app/internal/mfa/crypto"
+	"github.com/trackmycareer/app/internal/mfa/passkey"
+	"github.com/trackmycareer/app/internal/mfa/totp"
 	"github.com/trackmycareer/app/internal/middleware"
 	"github.com/trackmycareer/app/internal/passwordreset"
 	"github.com/trackmycareer/app/internal/polar"
@@ -114,6 +115,7 @@ func main() {
 	tagRepo := tag.NewRepository(pool)
 	winRepo := win.NewRepository(pool)
 	jobRepo := job.NewRepository(pool)
+	applicationRepo := application.NewRepository(pool)
 	companyRepo := company.NewRepository(pool)
 	jobtitleRepo := jobtitle.NewRepository(pool)
 	locationRepo := location.NewRepository(pool)
@@ -184,6 +186,7 @@ func main() {
 
 	winService := win.NewService(winRepo)
 	jobService := job.NewService(jobRepo)
+	applicationService := application.NewService(applicationRepo)
 	certService := certification.NewService(certRepo)
 	skillService := skill.NewService(skillRepo)
 	companyCache := gocache.New(5*time.Minute, 10*time.Minute)
@@ -215,6 +218,7 @@ func main() {
 	tagHandler := tag.NewHandler(tagRepo)
 	winHandler := win.NewHandler(winService, gamificationService)
 	jobHandler := job.NewHandler(jobService, gamificationService)
+	applicationHandler := application.NewHandler(applicationService, gamificationService)
 	certHandler := certification.NewHandler(certService, gamificationService)
 	skillHandler := skill.NewHandler(skillService, gamificationService)
 	companyHandler := company.NewHandler(companyService)
@@ -354,6 +358,12 @@ func main() {
 		verified.GET("/jobs/:id", jobHandler.Get)
 		verified.PUT("/jobs/:id", jobHandler.Update)
 		verified.DELETE("/jobs/:id", jobHandler.Delete)
+		verified.GET("/applications", applicationHandler.List)
+		verified.POST("/applications", applicationHandler.Create)
+		verified.GET("/applications/:id", applicationHandler.Get)
+		verified.PUT("/applications/:id", applicationHandler.Update)
+		verified.PATCH("/applications/:id/move", applicationHandler.Move)
+		verified.DELETE("/applications/:id", applicationHandler.Delete)
 
 		// Autocomplete search endpoints (rate-limited: 10 req/s per user, burst 20)
 		searchGroup := verified.Group("")

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
@@ -40,14 +40,18 @@ function todayISO(): string {
 export default function JobForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const isEditing = !!id;
+
+  // When creating, an accepted application can pass company/title to prefill.
+  const prefill = (routerLocation.state ?? null) as { company?: string; title?: string } | null;
 
   const { data: existingJob, isLoading: isLoadingJob } = useJobQuery(id ?? "");
   const createMutation = useCreateJobMutation();
   const updateMutation = useUpdateJobMutation();
 
-  const [company, setCompany] = useState("");
-  const [title, setTitle] = useState("");
+  const [company, setCompany] = useState(() => (!isEditing && prefill?.company) || "");
+  const [title, setTitle] = useState(() => (!isEditing && prefill?.title) || "");
   const [startDate, setStartDate] = useState(todayISO);
   const [endDate, setEndDate] = useState("");
   const [currentlyWorking, setCurrentlyWorking] = useState(true);

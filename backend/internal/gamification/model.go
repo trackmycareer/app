@@ -121,14 +121,16 @@ var LevelThresholds = []struct {
 
 // ActionPoints maps activity actions to their point values.
 var ActionPoints = map[string]int{
-	"win_created":     10,
-	"job_created":     15,
-	"job_updated":     15,
-	"cert_created":    10,
-	"cert_passed":     25,
-	"skill_created":   5,
-	"evidence_linked": 10,
-	"badge_earned":    50,
+	"win_created":          10,
+	"job_created":          15,
+	"job_updated":          15,
+	"cert_created":         10,
+	"cert_passed":          25,
+	"skill_created":        5,
+	"evidence_linked":      10,
+	"badge_earned":         50,
+	"application_created":  5,
+	"application_accepted": 25,
 }
 
 // LevelForPoints returns the level and title for a given point total.

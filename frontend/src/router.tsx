@@ -21,6 +21,8 @@ const WinsList = lazy(() => import("@/pages/wins/WinsList"));
 const WinForm = lazy(() => import("@/pages/wins/WinForm"));
 const JobsList = lazy(() => import("@/pages/jobs/JobsList"));
 const JobForm = lazy(() => import("@/pages/jobs/JobForm"));
+const ApplicationsBoard = lazy(() => import("@/pages/applications/ApplicationsBoard"));
+const ApplicationForm = lazy(() => import("@/pages/applications/ApplicationForm"));
 const CertificationsList = lazy(() => import("@/pages/certifications/CertificationsList"));
 const CertificationForm = lazy(() => import("@/pages/certifications/CertificationForm"));
 const SkillsList = lazy(() => import("@/pages/skills/SkillsList"));
@@ -197,6 +199,30 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <JobForm />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "applications",
+            element: (
+              <SuspenseWrapper>
+                <ApplicationsBoard />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "applications/new",
+            element: (
+              <SuspenseWrapper>
+                <ApplicationForm />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: "applications/:id/edit",
+            element: (
+              <SuspenseWrapper>
+                <ApplicationForm />
               </SuspenseWrapper>
             ),
           },

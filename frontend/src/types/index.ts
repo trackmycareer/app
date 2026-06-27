@@ -71,11 +71,18 @@ export interface AdminRecentSkill {
   proficiency: number;
 }
 
+export interface AdminCustomDomain {
+  domain: string;
+  status: string;
+  ssl_status: string;
+}
+
 export interface AdminUserDetail {
   user: User;
   counts: AdminActivityCounts;
   gamification: AdminGamificationSummary;
   linked_accounts: PublicLinkedAccount[];
+  custom_domain?: AdminCustomDomain | null;
   recent: {
     wins: AdminRecentWin[];
     jobs: AdminRecentJob[];
@@ -119,6 +126,33 @@ export interface Job {
   location: string | null;
   work_mode: string;
   responsibilities: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ApplicationStatus =
+  | "wishlist"
+  | "applied"
+  | "screen"
+  | "interview"
+  | "offer"
+  | "accepted"
+  | "rejected";
+
+export interface Application {
+  id: string;
+  user_id: string;
+  company: string;
+  title: string;
+  status: ApplicationStatus;
+  location: string | null;
+  work_mode: string | null;
+  job_url: string | null;
+  source: string | null;
+  salary: string | null;
+  applied_date: string | null;
   notes: string | null;
   sort_order: number;
   created_at: string;

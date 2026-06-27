@@ -57,6 +57,13 @@ const openToWorkLabels: Record<string, string> = {
   actively_looking: "Actively looking",
 };
 
+const linkButtonClass =
+  "inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--radius-md)] " +
+  "border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-2 text-sm " +
+  "font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)]";
+
 export function UserDetailDrawer({
   userId,
   open,
@@ -79,12 +86,7 @@ export function UserDetailDrawer({
           href={`/u/${data.user.username}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex w-full items-center justify-center gap-1.5
-            rounded-[var(--radius-md)] border border-[var(--border-default)]
-            bg-[var(--bg-elevated)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]
-            transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none
-            focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]
-            focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)]"
+          className={linkButtonClass}
           aria-label={`View public profile for ${data.user.name} (opens in a new tab)`}
         >
           <ExternalLinkIcon width={15} height={15} aria-hidden="true" />
@@ -95,6 +97,23 @@ export function UserDetailDrawer({
           No public profile (this user has not set a username).
         </p>
       )}
+      {data.custom_domain &&
+        (data.custom_domain.status === "active" ? (
+          <a
+            href={`https://${data.custom_domain.domain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkButtonClass}
+            aria-label={`Visit custom domain ${data.custom_domain.domain} (opens in a new tab)`}
+          >
+            <ExternalLinkIcon width={15} height={15} aria-hidden="true" />
+            <span className="truncate">{data.custom_domain.domain}</span>
+          </a>
+        ) : (
+          <p className="text-xs text-[var(--text-tertiary)]">
+            Custom domain {data.custom_domain.domain} ({data.custom_domain.status}, not live)
+          </p>
+        ))}
       <div className="flex gap-2">
         <Button
           variant="secondary"

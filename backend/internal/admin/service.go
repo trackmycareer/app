@@ -2,9 +2,11 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trackmycareer/app/internal/gamification"
@@ -30,7 +32,16 @@ type UserDetail struct {
 	Counts         ActivityCounts                      `json:"counts"`
 	Gamification   GamificationSummary                 `json:"gamification"`
 	LinkedAccounts []linkedaccount.PublicLinkedAccount `json:"linked_accounts"`
+	CustomDomain   *CustomDomainInfo                   `json:"custom_domain,omitempty"`
 	Recent         RecentItems                         `json:"recent"`
+}
+
+// CustomDomainInfo is the user's custom domain, if any. Status is "pending",
+// "active" or "failed"; only "active" domains actually serve the public profile.
+type CustomDomainInfo struct {
+	Domain    string `json:"domain"`
+	Status    string `json:"status"`
+	SSLStatus string `json:"ssl_status"`
 }
 
 // ActivityCounts holds per-user totals across the tracked domains.
@@ -167,6 +178,9 @@ func (s *Service) GetUserDetail(ctx context.Context, u user.User) (UserDetail, e
 		return UserDetail{}, err
 	}
 	if err := s.scanLinkedAccounts(ctx, u.ID, &detail); err != nil {
+		return UserDetail{}, err
+	}
+	if err := s.scanCustomDomain(ctx, u.ID, &detail); err != nil {
 		return UserDetail{}, err
 	}
 
@@ -320,4 +334,21 @@ func (s *Service) scanLinkedAccounts(ctx context.Context, userID uuid.UUID, deta
 		detail.LinkedAccounts = append(detail.LinkedAccounts, la)
 	}
 	return rows.Err()
+}
+
+func (s *Service) scanCustomDomain(ctx context.Context, userID uuid.UUID, detail *UserDetail) error {
+	var cd CustomDomainInfo
+	err := s.pool.QueryRow(ctx, `
+		SELECT domain, status, COALESCE(ssl_status, '')
+		FROM custom_domains WHERE user_id = $1
+	`, userID).Scan(&cd.Domain, &cd.Status, &cd.SSLStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("querying custom domain: %w", err)
+	}
+
+	detail.CustomDomain = &cd
+	return nil
 }
