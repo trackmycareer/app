@@ -13,16 +13,31 @@ export function PublicFooter({ className = "" }: PublicFooterProps) {
       className={`border-t border-[var(--border-subtle)] px-4 py-4 text-center text-xs
         text-[var(--text-tertiary)] ${className}`}
     >
-      <nav aria-label="Legal" className="mb-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-        <a href={LEGAL_URLS.privacy} className="transition-colors hover:text-[var(--text-secondary)]">
+      <nav
+        aria-label="Legal"
+        className="mb-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
+      >
+        <a
+          href={LEGAL_URLS.privacy}
+          target="_blank"
+          className="transition-colors hover:text-[var(--text-secondary)]"
+        >
           Privacy
         </a>
         <span aria-hidden="true">&middot;</span>
-        <a href={LEGAL_URLS.terms} className="transition-colors hover:text-[var(--text-secondary)]">
+        <a
+          href={LEGAL_URLS.terms}
+          target="_blank"
+          className="transition-colors hover:text-[var(--text-secondary)]"
+        >
           Terms
         </a>
         <span aria-hidden="true">&middot;</span>
-        <a href={LEGAL_URLS.cookies} className="transition-colors hover:text-[var(--text-secondary)]">
+        <a
+          href={LEGAL_URLS.cookies}
+          target="_blank"
+          className="transition-colors hover:text-[var(--text-secondary)]"
+        >
           Cookies
         </a>
       </nav>

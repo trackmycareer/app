@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Topbar } from "@/components/Topbar";
 import { Button } from "@/components/Button";
 import { TextInput } from "@/components/TextInput";
@@ -14,6 +16,19 @@ import {
   useCreateJobMutation,
   useUpdateJobMutation,
 } from "@/hooks/queries/useJobsQuery";
+import {
+  useCompensationQuery,
+  compensationKeys,
+} from "@/hooks/queries/useCompensationQuery";
+import { apiClient } from "@/lib/api";
+import { JobCompensationSection } from "./JobCompensationSection";
+import {
+  draftFromCompensation,
+  draftToPayload,
+  isBlankNewDraft,
+  parseDraftAmounts,
+} from "@/lib/compensationDraft";
+import type { CompensationDraft } from "@/lib/compensationDraft";
 
 const EMPLOYMENT_TYPE_OPTIONS = [
   { value: "full_time", label: "Full-time" },
@@ -47,8 +62,10 @@ export default function JobForm() {
   const prefill = (routerLocation.state ?? null) as { company?: string; title?: string } | null;
 
   const { data: existingJob, isLoading: isLoadingJob } = useJobQuery(id ?? "");
+  const { data: existingComp } = useCompensationQuery({ enabled: isEditing });
   const createMutation = useCreateJobMutation();
   const updateMutation = useUpdateJobMutation();
+  const queryClient = useQueryClient();
 
   const [company, setCompany] = useState(() => (!isEditing && prefill?.company) || "");
   const [title, setTitle] = useState(() => (!isEditing && prefill?.title) || "");
@@ -66,6 +83,18 @@ export default function JobForm() {
   const [titleError, setTitleError] = useState("");
   const [startDateError, setStartDateError] = useState("");
   const [populated, setPopulated] = useState(false);
+
+  const [compEntries, setCompEntries] = useState<CompensationDraft[]>([]);
+  const [originalCompIds, setOriginalCompIds] = useState<string[]>([]);
+  const [compPopulated, setCompPopulated] = useState(false);
+  const [compErrorKeys, setCompErrorKeys] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Editing any compensation row clears its validation error.
+  const handleCompChange = useCallback((next: CompensationDraft[]) => {
+    setCompEntries(next);
+    setCompErrorKeys((prev) => (prev.length ? [] : prev));
+  }, []);
 
   // Populate form when editing
   useEffect(() => {
@@ -90,8 +119,54 @@ export default function JobForm() {
     }
   }, [isEditing, existingJob, populated]);
 
+  // Load this role's existing compensation history once, when editing.
+  useEffect(() => {
+    if (isEditing && existingComp && !compPopulated) {
+      const mine = existingComp.filter((c) => c.job_id === id);
+      setCompEntries(mine.map(draftFromCompensation));
+      setOriginalCompIds(mine.map((c) => c.id));
+      setCompPopulated(true);
+    }
+  }, [isEditing, existingComp, id, compPopulated]);
+
+  // After the job is saved, reconcile its compensation entries: update existing
+  // rows, create new ones, and delete rows the user removed. The job is already
+  // persisted, so a failed entry is surfaced via a toast rather than blocking.
+  const syncCompensation = useCallback(
+    async (jobId: string) => {
+      const currentIds = new Set(
+        compEntries.filter((e) => e.id).map((e) => e.id as string),
+      );
+      const toDelete = originalCompIds.filter((cid) => !currentIds.has(cid));
+
+      const ops: Promise<unknown>[] = [];
+      for (const draft of compEntries) {
+        const payload = draftToPayload(draft, jobId);
+        if (draft.id) {
+          if (payload) ops.push(apiClient.compensation.update(draft.id, payload));
+        } else if (!isBlankNewDraft(draft) && payload) {
+          ops.push(apiClient.compensation.create(payload));
+        }
+      }
+      for (const delId of toDelete) ops.push(apiClient.compensation.delete(delId));
+
+      if (ops.length === 0) return;
+
+      const results = await Promise.allSettled(ops);
+      queryClient.invalidateQueries({ queryKey: compensationKeys.lists() });
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        toast.error(
+          `${failed} compensation ${failed === 1 ? "entry" : "entries"} could not be saved`,
+        );
+      }
+    },
+    [compEntries, originalCompIds, queryClient],
+  );
+
   const handleSubmit = useCallback(
-    (e: FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
 
       const trimmedCompany = company.trim();
@@ -121,6 +196,19 @@ export default function JobForm() {
 
       if (hasError) return;
 
+      // Validate the compensation rows before persisting anything.
+      const invalidKeys = compEntries
+        .filter((d) => parseDraftAmounts(d) === null)
+        .map((d) => d.key);
+      if (invalidKeys.length > 0) {
+        setCompErrorKeys(invalidKeys);
+        requestAnimationFrame(() => {
+          document.getElementById(`job-comp-${invalidKeys[0]}-base`)?.focus();
+        });
+        return;
+      }
+      setCompErrorKeys([]);
+
       const payload = {
         company: trimmedCompany,
         title: trimmedTitle,
@@ -134,12 +222,22 @@ export default function JobForm() {
         notes: notes.trim() || null,
       };
 
-      if (isEditing && id) {
-        updateMutation.mutate({ id, data: payload }, { onSuccess: () => navigate("/jobs") });
-      } else {
-        createMutation.mutate(payload, {
-          onSuccess: () => navigate("/jobs"),
-        });
+      setSubmitting(true);
+      try {
+        let jobId: string;
+        if (isEditing && id) {
+          await updateMutation.mutateAsync({ id, data: payload });
+          jobId = id;
+        } else {
+          const created = await createMutation.mutateAsync(payload);
+          jobId = created.id;
+        }
+        await syncCompensation(jobId);
+        navigate("/jobs");
+      } catch {
+        // Job mutation failures are surfaced by the axios response interceptor.
+      } finally {
+        setSubmitting(false);
       }
     },
     [
@@ -159,10 +257,12 @@ export default function JobForm() {
       createMutation,
       updateMutation,
       navigate,
+      compEntries,
+      syncCompensation,
     ],
   );
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || submitting;
 
   if (isEditing && isLoadingJob) {
     return (
@@ -329,6 +429,14 @@ export default function JobForm() {
                 transition-colors focus:outline-none focus:ring-2
                 focus:ring-[var(--accent-default)] focus:ring-offset-1
                 focus:ring-offset-[var(--bg-base)]"
+            />
+          </div>
+
+          <div className="border-t border-[var(--border-subtle)] pt-5">
+            <JobCompensationSection
+              entries={compEntries}
+              onChange={handleCompChange}
+              errorKeys={compErrorKeys}
             />
           </div>
 

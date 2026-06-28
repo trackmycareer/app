@@ -11,10 +11,11 @@ export const compensationKeys = {
   detail: (id: string) => [...compensationKeys.details(), id] as const,
 };
 
-export function useCompensationQuery() {
+export function useCompensationQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: compensationKeys.list(),
     queryFn: () => apiClient.compensation.list().then((res) => res.data.data),
+    enabled: options?.enabled ?? true,
   });
 }
 
